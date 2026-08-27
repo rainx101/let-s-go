@@ -2,6 +2,24 @@
 
 Coding rules for "let's go". Read with `AGENT.md` (do not assume; ask) and
 `PRD.md` (spec). Stack: **Python · Streamlit · Neon (Postgres) · pytest**.
+Tooling: **uv · ruff · ty · prek · pytest**.
+
+## Tooling & environment
+- Use **uv** for everything Python. Run tools with **`uv run python ...`** (and
+  `uv run pytest`, `uv run ruff`, etc.) — never a bare system `python`.
+- **Do not edit `pyproject.toml` dependencies by hand.** Add deps with
+  **`uv add LIB`** (runtime) or **`uv add --dev LIB`** (dev/test).
+- After any `uv add`, **commit the updated `uv.lock`** (project-root lockfile; or
+  `backend/uv.lock` if we split a backend) — a stale lockfile fails CI.
+- **ruff** for lint/format: `uv run ruff check` and `uv run ruff format`.
+- **ty** for type-checking: `uv run ty` must pass.
+- **prek** manages pre-commit hooks; install once and let it gate commits.
+- **Logging, not print:** use the `logging` module so behavior is traceable when
+  debugging; log at sensible levels (debug for detail, info for milestones,
+  warning/error for problems).
+- **Do not hide or wrap errors.** No swallowing exceptions, no broad catch-and-
+  continue, no re-wrapping that loses the traceback. Let errors surface loudly;
+  handle only the specific, expected ones (see Python rules).
 
 ## Work Style
 For any code change:
@@ -22,13 +40,14 @@ For any code change:
   Flag single-use functions/files.
 
 ## Python
-- Target the project's Python version; standard library first, add a dependency
-  only when it earns its place (record it in `requirements.txt`).
-- Follow PEP 8; keep functions small and single-purpose. Use type hints on
-  function signatures.
+- Standard library first; add a dependency only when it earns its place, via
+  `uv add` (never hand-edit `pyproject.toml`).
+- Follow PEP 8 (enforced by ruff); keep functions small and single-purpose. Use
+  type hints on function signatures (checked by ty).
 - Prefer pure functions for logic (budget math, distance, currency) so they're
   testable without Streamlit or the DB.
-- No bare `except:`; catch the specific exception, and only where it can occur.
+- No bare `except:`; catch the specific expected exception, and only where it can
+  occur. Otherwise **let it propagate** — do not hide or wrap errors.
 - Keep secrets out of code — read from Streamlit secrets / env only.
 
 ## Streamlit (UI)
@@ -60,19 +79,25 @@ For any code change:
 - Keys in secrets only. Fail soft: an API error shows an empty/edit state, never
   a crash.
 
-## Tests (pytest)
+## Tests (pytest, TDD)
+- **TDD:** write the failing test first, then the code to pass it. Run with
+  `uv run pytest`.
 - Test the logic that can break: budget totals, currency conversion, distance
   ordering, "latest review wins," recommendation sort (preferred-first,
   cheapest-first).
+- **DRY with fixtures in `conftest.py`** — shared setup (sample trip, mock DB,
+  mock API responses) lives there, not copy-pasted per test.
 - Pure functions get plain unit tests; **mock** external APIs and the DB — no
   live network or real Neon calls in the test suite.
 - Name tests `test_<unit>_<behavior>`; one behavior per test; cover the edge case
   that motivated the code (empty results, over-budget, quota exhausted).
-- Add or update a test with any logic change; run `pytest` before reporting done.
+- Add or update a test with any logic change.
 
 ## Definition of done (per change)
-- Edit landed, imports/structure intact, relevant `pytest` green.
-- Secrets clean (nothing committed). `CHANGELOG.md` updated when meaningful.
+- Edit landed, imports/structure intact.
+- `uv run ruff check`, `uv run ty`, and `uv run pytest` all green.
+- `uv.lock` committed if deps changed. Secrets clean (nothing committed).
+- `CHANGELOG.md` updated when meaningful.
 - Reported back: what changed, what to watch, what's next.
 
 _Last updated: 2026-08-26_
