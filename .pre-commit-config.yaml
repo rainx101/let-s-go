@@ -1,6 +1,11 @@
 # Local gatekeeper: these run on `git commit` (managed by prek).
 # Same checks as CI, so problems are caught before they leave your laptop.
 repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks       # blocks committing secrets (keys, passwords, DB URLs)
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.5
     hooks:

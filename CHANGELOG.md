@@ -6,6 +6,21 @@ step**.
 
 ---
 
+## 2026-08-31 — Tier 1 automations (secrets, deps, consistency)
+
+**What we did**
+- **Secret scanning:** added **gitleaks** (v8.30.1) as a pre-commit hook and a
+  CI job — blocks committing keys/passwords/DB URLs, locally and on GitHub.
+- **Dependabot** (`.github/dependabot.yml`): weekly PRs for Python deps (uv
+  ecosystem) and GitHub Actions, incl. security updates.
+- **`.editorconfig`:** consistent indentation/line-endings across editors.
+- Verified all local hooks pass (gitleaks, ruff, ruff-format, ty, pytest).
+- Note: **branch protection** on `main` (require CI to pass) is a GitHub repo
+  setting, applied separately after this PR's checks exist.
+
+**Next step**
+- Enable branch protection on `main`; then begin **Phase 0 app skeleton**.
+
 ## 2026-08-31 — Tooling & CI setup (Phase 0 groundwork)
 
 **What we did**
