@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# uv / virtualenv
+.venv/
+
+# Streamlit secrets & local config (never commit secrets)
+.streamlit/secrets.toml
+.env
+
+# OS / editor
+.DS_Store

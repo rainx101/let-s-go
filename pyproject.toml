@@ -1,0 +1,33 @@
+[project]
+name = "let-s-go"
+version = "0.1.0"
+description = "Personal travel budget & planning app (Streamlit + Neon)."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.ruff]
+# Balanced starter config for a solo project: catches real problems, auto-formats,
+# does not nag about trivia. Tighten `select` later if desired.
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes (real bugs), I import-sort, B bug-prone patterns,
+# UP modern-Python, SIM simplifications.
+select = ["E", "W", "F", "I", "B", "UP", "SIM"]
+
+# ty uses its (strict-on-real-errors) defaults; add [tool.ty.rules] overrides
+# later only if a specific rule needs tuning.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[dependency-groups]
+dev = [
+    "prek>=0.5.0",
+    "pytest>=9.1.1",
+    "ruff>=0.16.5",
+    "ty>=0.0.77",
+]
