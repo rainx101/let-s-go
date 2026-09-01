@@ -6,6 +6,28 @@ step**.
 
 ---
 
+## 2026-08-31 — Tooling & CI setup (Phase 0 groundwork)
+
+**What we did**
+- Initialized the uv project (Python 3.12): `pyproject.toml`, `.python-version`,
+  `.venv`, `uv.lock`.
+- Added dev tools: **ruff, ty, pytest, prek** (`uv add --dev`).
+- Configured **ruff** (line length 100; rules E/W/F/I/B/UP/SIM) and **pytest**
+  (tests/ + pythonpath) in `pyproject.toml`; ty uses defaults.
+- Added first real code + tests: `lets_go/budget.py` (pure budget math) and
+  `tests/` with a `conftest.py` fixture — 6 tests pass.
+- Two-layer checks wired up:
+  - **Local:** `.pre-commit-config.yaml` (ruff, ruff-format, ty, pytest) via
+    `prek install` — blocks bad commits.
+  - **GitHub:** `.github/workflows/ci.yml` runs the same checks on push/PR,
+    incl. `uv sync --locked` (fails on stale lockfile).
+- Added `.gitignore` (ignores `.venv`, caches, and Streamlit secrets).
+- Verified: ruff, ruff-format, ty, and pytest all green locally and via the hooks.
+
+**Next step**
+- Begin **Phase 0 app skeleton** from `TASKS.md`: three-tab Streamlit app,
+  Neon connection + secrets, password login, first deploy.
+
 ## 2026-08-26 — Planning, requirements & task breakdown
 
 **What we did**
