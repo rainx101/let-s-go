@@ -6,6 +6,30 @@ step**.
 
 ---
 
+## 2026-09-01 — Phase 0 app skeleton (shell first)
+
+**What we did**
+- Added **streamlit** and **psycopg[binary]** (Neon/Postgres driver) via uv.
+- **`app.py`:** login gate + three-tab layout (Plan / Receipts / Restaurants by
+  city) with placeholder content.
+- **`lets_go/auth.py`:** single-user password gate (constant-time compare;
+  reads from secrets; empty password never authenticates).
+- **`lets_go/db.py`:** one data-access layer — cached Neon connection +
+  `health_check()` (`SELECT 1`); clear error if the URL isn't configured yet.
+- **`.streamlit/secrets.toml.example`:** template for password + Neon URL (real
+  `secrets.toml` is gitignored).
+- **Neon wired up & live-tested:** connected to project `old-scene-25676334`
+  (us-west-2). `health_check()` runs against the real DB (Postgres 18.6); app
+  shows a "Neon connected ✅" status in the sidebar.
+- Verified: ruff/ty/pytest green; app launches headless (HTTP 200), no errors,
+  live DB health check passes.
+
+**Next step**
+- Design the **first schema** (trips/legs/items) — start of Phase 1.
+- Deploy to **Streamlit Community Cloud** + test Add-to-Home-Screen (needs
+  setting the same secrets in the Streamlit Cloud dashboard).
+- Housekeeping: rotate the Neon password (it was shared in chat).
+
 ## 2026-08-31 — Tier 1 automations (secrets, deps, consistency)
 
 **What we did**

@@ -3,7 +3,10 @@ name = "let-s-go"
 version = "0.1.0"
 description = "Personal travel budget & planning app (Streamlit + Neon)."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "psycopg[binary]>=3.3.5",
+    "streamlit>=1.63.0",
+]
 
 [tool.ruff]
 # Balanced starter config for a solo project: catches real problems, auto-formats,

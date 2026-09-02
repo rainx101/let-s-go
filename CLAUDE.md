@@ -11,6 +11,10 @@ Tooling: **uv · ruff · ty · prek · pytest**.
   **`uv add LIB`** (runtime) or **`uv add --dev LIB`** (dev/test).
 - After any `uv add`, **commit the updated `uv.lock`** (project-root lockfile; or
   `backend/uv.lock` if we split a backend) — a stale lockfile fails CI.
+- Streamlit Cloud can't read uv's `pyproject.toml`, so we also keep a generated
+  **`requirements.txt`**. After changing deps, regenerate it:
+  `uv export --no-dev --no-hashes --no-emit-project -o requirements.txt` and
+  commit it.
 - **ruff** for lint/format: `uv run ruff check` and `uv run ruff format`.
 - **ty** for type-checking: `uv run ty` must pass.
 - **prek** manages pre-commit hooks; install once and let it gate commits.
