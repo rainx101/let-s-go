@@ -12,18 +12,18 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 Goal: an empty but deployed, logged-in Streamlit app connected to Neon.
 
-- [ ] Create Python project scaffold (`app.py`, `requirements.txt`, `.gitignore`).
-- [ ] Streamlit skeleton with the **three tabs**: Plan / Receipts / Restaurants
+- [x] Create Python project scaffold (`app.py`, `requirements.txt`, `.gitignore`).
+- [x] Streamlit skeleton with the **three tabs**: Plan / Receipts / Restaurants
       by city (empty placeholders).
-- [ ] **Neon** account + database; store connection string in Streamlit
+- [x] **Neon** account + database; store connection string in Streamlit
       **secrets** (never in code).
-- [ ] DB connection helper + a quick "SELECT 1" health check.
-- [ ] **Password login** gate (Streamlit secret password; blocks all tabs until
+- [x] DB connection helper + a quick "SELECT 1" health check.
+- [x] **Password login** gate (Streamlit secret password; blocks all tabs until
       entered).
-- [ ] Secrets scaffold for future API keys (flights/hotel/currency) — empty but
-      wired.
-- [ ] Deploy to **Streamlit Community Cloud**; verify **Add to Home Screen** on
-      phone gives an app icon + full-screen.
+- [x] Secrets scaffold for future API keys (flights/hotel/currency) — empty but
+      wired (`.streamlit/secrets.toml.example`).
+- [x] Deploy to **Streamlit Community Cloud** (live & working). _Add to Home
+      Screen on phone: optional, anytime._
 
 ## Phase 1 — Core planning (manual entry, budget, save)
 

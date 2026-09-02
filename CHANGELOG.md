@@ -6,6 +6,25 @@ step**.
 
 ---
 
+## 2026-09-01 — Deployed to Streamlit Cloud (Phase 0 done)
+
+**What we did**
+- Added a uv-generated **`requirements.txt`** (Streamlit Cloud can't read uv's
+  pyproject.toml); noted the regen step in `CLAUDE.md`.
+- Removed Dependabot version-update config; kept **security alerts** on.
+- Made the repo **public** (verified no secrets in git history first) so
+  Streamlit Cloud could access it.
+- **Deployed** on Streamlit Community Cloud with secrets set in the dashboard
+  (app password + Neon URL). App is live and working — login + three tabs +
+  "Neon connected".
+
+**Phase 0 is complete.**
+
+**Next step**
+- Add to phone Home Screen (optional, anytime).
+- Consider free **branch protection** now that the repo is public.
+- Start **Phase 1:** first schema (trips/legs/items) + "create a trip" flow.
+
 ## 2026-09-01 — Phase 0 app skeleton (shell first)
 
 **What we did**
