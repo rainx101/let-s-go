@@ -6,6 +6,43 @@ step**.
 
 ---
 
+## 2026-09-01 — Phase 1 slice 1: create & list trips
+
+**What we did**
+- **Schema** (`lets_go/schema.sql`): `trips`, `legs`, `items` tables; idempotent
+  `init_db()` runs them on startup. Money stored in home currency for now.
+- **Data layer** (`lets_go/trips.py`): pure helpers (`validate_new_trip`,
+  `trip_date_range`) + DB access (`create_trip`, `list_trips`), parameterized.
+- **Plan tab:** create a trip — name, home currency, budget cap, and add cities
+  (with optional dates + need-flight/hotel), then save.
+- **Receipts tab:** lists saved trips (name · cities · date span), expandable to
+  show legs and budget cap.
+- **Tests:** 8 new unit tests for the pure helpers (14 total).
+- Verified: ruff/ty/pytest green; live Neon round-trip (create → read → delete)
+  works; app loads clean.
+
+**Next step**
+- Phase 1 slice 2: add priced items to days + live budget bar vs cap.
+
+## 2026-09-01 — Deployed to Streamlit Cloud (Phase 0 done)
+
+**What we did**
+- Added a uv-generated **`requirements.txt`** (Streamlit Cloud can't read uv's
+  pyproject.toml); noted the regen step in `CLAUDE.md`.
+- Removed Dependabot version-update config; kept **security alerts** on.
+- Made the repo **public** (verified no secrets in git history first) so
+  Streamlit Cloud could access it.
+- **Deployed** on Streamlit Community Cloud with secrets set in the dashboard
+  (app password + Neon URL). App is live and working — login + three tabs +
+  "Neon connected".
+
+**Phase 0 is complete.**
+
+**Next step**
+- Add to phone Home Screen (optional, anytime).
+- Consider free **branch protection** now that the repo is public.
+- Start **Phase 1:** first schema (trips/legs/items) + "create a trip" flow.
+
 ## 2026-09-01 — Phase 0 app skeleton (shell first)
 
 **What we did**
