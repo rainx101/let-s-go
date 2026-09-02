@@ -18,12 +18,17 @@ step**.
   `health_check()` (`SELECT 1`); clear error if the URL isn't configured yet.
 - **`.streamlit/secrets.toml.example`:** template for password + Neon URL (real
   `secrets.toml` is gitignored).
-- Verified: ruff/ty/pytest green; app launches headless (HTTP 200, health "ok").
+- **Neon wired up & live-tested:** connected to project `old-scene-25676334`
+  (us-west-2). `health_check()` runs against the real DB (Postgres 18.6); app
+  shows a "Neon connected ✅" status in the sidebar.
+- Verified: ruff/ty/pytest green; app launches headless (HTTP 200), no errors,
+  live DB health check passes.
 
-**Next step (needs you)**
-- Create a free **Neon** account, paste the connection string into local
-  `.streamlit/secrets.toml`, and we wire up the real health check + first schema.
-- Then deploy to **Streamlit Community Cloud** + test Add-to-Home-Screen.
+**Next step**
+- Design the **first schema** (trips/legs/items) — start of Phase 1.
+- Deploy to **Streamlit Community Cloud** + test Add-to-Home-Screen (needs
+  setting the same secrets in the Streamlit Cloud dashboard).
+- Housekeeping: rotate the Neon password (it was shared in chat).
 
 ## 2026-08-31 — Tier 1 automations (secrets, deps, consistency)
 

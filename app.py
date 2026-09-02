@@ -4,12 +4,18 @@ three-tab layout. Tabs are placeholders; features come in later phases."""
 import streamlit as st
 
 from lets_go.auth import require_login
+from lets_go.db import health_check
 
 st.set_page_config(page_title="let's go", page_icon="🧳", layout="centered")
 
 require_login()
 
 st.title("🧳 let's go")
+
+with st.sidebar:
+    st.caption("Database")
+    if health_check():
+        st.success("Neon connected", icon="✅")
 
 plan_tab, receipts_tab, restaurants_tab = st.tabs(["Plan", "Receipts", "Restaurants by city"])
 
