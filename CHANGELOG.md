@@ -6,6 +6,24 @@ step**.
 
 ---
 
+## 2026-09-01 — Phase 1 slice 1: create & list trips
+
+**What we did**
+- **Schema** (`lets_go/schema.sql`): `trips`, `legs`, `items` tables; idempotent
+  `init_db()` runs them on startup. Money stored in home currency for now.
+- **Data layer** (`lets_go/trips.py`): pure helpers (`validate_new_trip`,
+  `trip_date_range`) + DB access (`create_trip`, `list_trips`), parameterized.
+- **Plan tab:** create a trip — name, home currency, budget cap, and add cities
+  (with optional dates + need-flight/hotel), then save.
+- **Receipts tab:** lists saved trips (name · cities · date span), expandable to
+  show legs and budget cap.
+- **Tests:** 8 new unit tests for the pure helpers (14 total).
+- Verified: ruff/ty/pytest green; live Neon round-trip (create → read → delete)
+  works; app loads clean.
+
+**Next step**
+- Phase 1 slice 2: add priced items to days + live budget bar vs cap.
+
 ## 2026-09-01 — Deployed to Streamlit Cloud (Phase 0 done)
 
 **What we did**

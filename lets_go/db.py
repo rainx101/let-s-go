@@ -1,8 +1,13 @@
 """Database access for Neon (Postgres). One small layer — pages never open
 raw connections themselves (see CLAUDE.md)."""
 
+from pathlib import Path
+from typing import LiteralString, cast
+
 import psycopg
 import streamlit as st
+
+_SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
 def _connection_string() -> str:
@@ -31,3 +36,13 @@ def health_check() -> bool:
     with get_connection().cursor() as cur:
         cur.execute("SELECT 1")
         return cur.fetchone() == (1,)
+
+
+@st.cache_resource
+def init_db() -> None:
+    """Create tables if they don't exist. Idempotent; cached so it runs once
+    per deploy."""
+    # Our own trusted schema file (not user input); cast for the SQL-literal type.
+    schema = cast(LiteralString, _SCHEMA_PATH.read_text())
+    with get_connection().cursor() as cur:
+        cur.execute(schema)
