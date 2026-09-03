@@ -1,6 +1,7 @@
 """let's go — travel budget & planning app.
 Phase 1 (slice 1): create and list trips."""
 
+from datetime import date, timedelta
 from decimal import Decimal
 
 import streamlit as st
@@ -56,32 +57,53 @@ with plan_tab:
     home_currency = c1.selectbox("Home currency", CURRENCIES, key="trip_currency")
     budget_cap = c2.number_input("Budget cap", min_value=0.0, step=100.0, key="trip_budget")
 
-    st.subheader("Cities")
-    with st.form("add_city", clear_on_submit=True):
-        city = st.text_input("City")
-        country = st.text_input("Country (optional)")
-        dc1, dc2 = st.columns(2)
-        start = dc1.date_input("Start date (optional)", value=None)
-        end = dc2.date_input("End date (optional)", value=None)
-        fc, hc = st.columns(2)
-        need_flight = fc.checkbox("Need flight")
-        need_hotel = hc.checkbox("Need hotel")
-        if st.form_submit_button("Add city"):
-            if city.strip():
-                st.session_state.draft_legs.append(
-                    DraftLeg(city, country, start, end, need_flight, need_hotel)
-                )
-            else:
-                st.warning("Enter a city name.")
+    st.subheader("Destinations")
 
     for i, leg in enumerate(st.session_state.draft_legs):
         row, remove = st.columns([6, 1])
         flags = ("✈️" if leg.need_flight else "") + ("🏨" if leg.need_hotel else "")
-        dates = f"{leg.start_date or '?'} → {leg.end_date or '?'}"
-        row.write(f"**{leg.city}** {leg.country} · {dates} {flags}")
+        origin = f"{leg.from_city} → " if leg.from_city else ""
+        place = f"{origin}**{leg.city}**" + (f", {leg.country}" if leg.country else "")
+        dates = f"{leg.start_date} → {leg.end_date}"
+        row.write(f"{place} · {dates} {flags}")
         if remove.button("✕", key=f"rm_{i}"):
             st.session_state.draft_legs.pop(i)
             st.rerun()
+
+    with st.form("add_city", clear_on_submit=True):
+        st.markdown("**Add destination**")
+        oc1, oc2 = st.columns(2)
+        from_city = oc1.text_input("From city (optional)")
+        from_country = oc2.text_input("From country (optional)")
+        tc1, tc2 = st.columns(2)
+        city = tc1.text_input("To city")
+        country = tc2.text_input("Country (optional)")
+        today = date.today()
+        travel_dates = st.date_input("Travel dates", value=(today, today + timedelta(days=1)))
+        fc, hc = st.columns(2)
+        need_flight = fc.checkbox("Need flight")
+        need_hotel = hc.checkbox("Need hotel")
+        if st.form_submit_button("Add destination"):
+            picked = list(travel_dates) if isinstance(travel_dates, tuple) else [travel_dates]
+            start = picked[0] if picked else None
+            end = picked[1] if len(picked) > 1 else None
+            leg = DraftLeg(
+                city=city,
+                country=country,
+                from_city=from_city,
+                from_country=from_country,
+                start_date=start,
+                end_date=end,
+                need_flight=need_flight,
+                need_hotel=need_hotel,
+            )
+            problems = validate_new_trip("_", [leg])  # name placeholder; check this leg only
+            if problems:
+                for p in problems:
+                    st.warning(p)
+            else:
+                st.session_state.draft_legs.append(leg)
+                st.rerun()
 
     if st.button("Save trip", type="primary"):
         errors = validate_new_trip(name, st.session_state.draft_legs)
@@ -181,9 +203,12 @@ with receipts_tab:
                 st.write(f"Budget cap: {trip['budget_cap']} {trip['home_currency']}")
             for leg in legs:
                 flags = ("✈️" if leg["need_flight"] else "") + ("🏨" if leg["need_hotel"] else "")
+                origin = f"{leg['from_city']} → " if leg.get("from_city") else ""
+                place = f"{origin}**{leg['city']}**" + (
+                    f", {leg['country']}" if leg["country"] else ""
+                )
                 st.write(
-                    f"- **{leg['city']}** {leg['country'] or ''} · "
-                    f"{leg['start_date'] or '?'} → {leg['end_date'] or '?'} {flags}"
+                    f"- {place} · {leg['start_date'] or '?'} → {leg['end_date'] or '?'} {flags}"
                 )
 
 with restaurants_tab:

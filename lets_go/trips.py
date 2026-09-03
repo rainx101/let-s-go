@@ -12,10 +12,13 @@ from lets_go.db import get_connection
 
 @dataclass
 class DraftLeg:
-    """A city/leg being drafted in the UI before the trip is saved."""
+    """A city/leg being drafted in the UI before the trip is saved.
+    `from_city`/`from_country` are the flight origin (for flight search)."""
 
     city: str
     country: str = ""
+    from_city: str = ""
+    from_country: str = ""
     start_date: date | None = None
     end_date: date | None = None
     need_flight: bool = False
@@ -42,8 +45,12 @@ def validate_new_trip(name: str, legs: list[DraftLeg]) -> list[str]:
     for i, leg in enumerate(legs, start=1):
         if not leg.city.strip():
             errors.append(f"City {i} needs a name.")
-        if leg.start_date and leg.end_date and leg.end_date < leg.start_date:
-            errors.append(f"City {i}: end date is before start date.")
+        if not leg.start_date or not leg.end_date:
+            errors.append(f"City {i}: pick start and end dates.")
+        elif leg.end_date <= leg.start_date:
+            errors.append(f"City {i}: end date must be after the start date.")
+        if leg.need_flight and not leg.from_city.strip():
+            errors.append(f"City {i}: add a departure city to search flights.")
     return errors
 
 
@@ -78,13 +85,15 @@ def create_trip(
         trip_id = row[0]
         for pos, leg in enumerate(legs):
             cur.execute(
-                "INSERT INTO legs (trip_id, city, country, start_date, end_date, "
-                "need_flight, need_hotel, position) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                "INSERT INTO legs (trip_id, city, country, from_city, from_country, "
+                "start_date, end_date, need_flight, need_hotel, position) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     trip_id,
                     leg.city.strip(),
                     leg.country.strip() or None,
+                    leg.from_city.strip() or None,
+                    leg.from_country.strip() or None,
                     leg.start_date,
                     leg.end_date,
                     leg.need_flight,
@@ -105,7 +114,7 @@ def list_trips() -> list[dict]:
         )
         trips = cur.fetchall()
         cur.execute(
-            "SELECT trip_id, city, country, start_date, end_date, "
+            "SELECT trip_id, city, country, from_city, from_country, start_date, end_date, "
             "need_flight, need_hotel, position FROM legs ORDER BY position"
         )
         legs = cur.fetchall()

@@ -11,16 +11,22 @@ CREATE TABLE IF NOT EXISTS trips (
 );
 
 CREATE TABLE IF NOT EXISTS legs (
-    id          SERIAL PRIMARY KEY,
-    trip_id     INTEGER NOT NULL REFERENCES trips (id) ON DELETE CASCADE,
-    city        TEXT NOT NULL,
-    country     TEXT,
-    start_date  DATE,
-    end_date    DATE,
-    need_flight BOOLEAN NOT NULL DEFAULT FALSE,
-    need_hotel  BOOLEAN NOT NULL DEFAULT FALSE,
-    position    INTEGER NOT NULL DEFAULT 0
+    id           SERIAL PRIMARY KEY,
+    trip_id      INTEGER NOT NULL REFERENCES trips (id) ON DELETE CASCADE,
+    city         TEXT NOT NULL,
+    country      TEXT,
+    from_city    TEXT,
+    from_country TEXT,
+    start_date   DATE,
+    end_date     DATE,
+    need_flight  BOOLEAN NOT NULL DEFAULT FALSE,
+    need_hotel   BOOLEAN NOT NULL DEFAULT FALSE,
+    position     INTEGER NOT NULL DEFAULT 0
 );
+
+-- Added after the initial legs table shipped; idempotent for existing DBs.
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_city TEXT;
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_country TEXT;
 
 CREATE TABLE IF NOT EXISTS items (
     id         SERIAL PRIMARY KEY,

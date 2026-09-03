@@ -32,8 +32,10 @@ Goal: build, edit, and save a trip with a working budget — no external APIs ye
 - [x] **DB schema:** `trips`, `legs` (city + date range), `items`
       (flight/hotel/spot/restaurant + cost + day + order), plus fields for
       currency and status. (Draft in PRD §7 — finalize here.)
-- [x] **Create trip:** name, one or more **cities/legs** with date ranges,
-      **home currency**, single **budget cap** (PRD §6).
+- [x] **Create trip:** name, one or more **cities/legs** — each **From city/
+      country (optional)** → **To city/country** with a **required** date range
+      (end after start, no same-day) — **home currency**, single **budget cap**
+      (PRD §6).
 - [x] Toggle per leg: **need flight? need hotel?**
 - [x] **Add item manually** (flight/hotel/spot/restaurant) with a typed cost;
       assign to a **day** (and city/leg).
