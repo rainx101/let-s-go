@@ -24,6 +24,7 @@ class DraftLeg:
     end_date: date | None = None
     need_flight: bool = False
     need_hotel: bool = False
+    round_trip: bool = False
     budget_cap: Decimal | None = None
 
 
@@ -35,6 +36,14 @@ def normalize_place(name: str) -> str:
     Cheap cleanup so obvious formatting differences don't trip up planning;
     real place validation (geocoding) comes in Phase 2."""
     return " ".join(name.split()).title()
+
+
+def leg_endpoint(leg: DraftLeg) -> tuple[str, str]:
+    """Where you are after this leg — the origin if it's a round trip (you return
+    to the start), otherwise the destination. Used to autofill the next leg's From."""
+    if leg.round_trip:
+        return leg.from_city, leg.from_country
+    return leg.city, leg.country
 
 
 def trip_date_range(legs: list[DraftLeg]) -> tuple[date | None, date | None]:
@@ -157,8 +166,9 @@ def create_trip(
         for pos, leg in enumerate(legs):
             cur.execute(
                 "INSERT INTO legs (trip_id, city, country, from_city, from_country, "
-                "start_date, end_date, need_flight, need_hotel, budget_cap, position) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "start_date, end_date, need_flight, need_hotel, round_trip, budget_cap, "
+                "position) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     trip_id,
                     leg.city.strip(),
@@ -169,6 +179,7 @@ def create_trip(
                     leg.end_date,
                     leg.need_flight,
                     leg.need_hotel,
+                    leg.round_trip,
                     leg.budget_cap,
                     pos,
                 ),
@@ -187,7 +198,8 @@ def list_trips() -> list[dict]:
         trips = cur.fetchall()
         cur.execute(
             "SELECT trip_id, city, country, from_city, from_country, start_date, end_date, "
-            "need_flight, need_hotel, budget_cap, position FROM legs ORDER BY position"
+            "need_flight, need_hotel, round_trip, budget_cap, position FROM legs "
+            "ORDER BY position"
         )
         legs = cur.fetchall()
 

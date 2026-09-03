@@ -9,6 +9,7 @@ from lets_go.trips import (
     dates_overlap,
     destination_budgets,
     export_json,
+    leg_endpoint,
     normalize_place,
     trip_date_range,
     validate_budget_caps,
@@ -156,6 +157,18 @@ def test_export_json_nests_items_and_serializes_types():
 
 def test_export_json_empty_when_no_trips():
     assert json.loads(export_json([], {})) == {"version": 1, "trips": []}
+
+
+def test_leg_endpoint_single_is_the_destination():
+    leg = DraftLeg(from_city="LA", from_country="USA", city="Tokyo", country="Japan")
+    assert leg_endpoint(leg) == ("Tokyo", "Japan")
+
+
+def test_leg_endpoint_round_trip_returns_to_the_origin():
+    leg = DraftLeg(
+        from_city="LA", from_country="USA", city="Tokyo", country="Japan", round_trip=True
+    )
+    assert leg_endpoint(leg) == ("LA", "USA")
 
 
 def test_validate_requires_name():
