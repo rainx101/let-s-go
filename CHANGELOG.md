@@ -6,6 +6,19 @@ step**.
 
 ---
 
+## 2026-09-03 — Application logging (surfaces in Streamlit Cloud logs)
+
+**What we did**
+- Added `lets_go/log.py` — one stderr handler on the `lets_go` package logger at
+  INFO (so lines reach the Streamlit Cloud log pane); modules use
+  `get_logger(__name__)`.
+- **Milestones (info):** trip created / status change / trip deleted / leg
+  deleted. **Problem (warning):** the previously-silent **Neon reconnect** now
+  logs a warning. Real exceptions still surface loudly (CLAUDE.md).
+- Complements Streamlit's crash reporting: gives a trail before an error and
+  catches non-crashing events (e.g. the reconnect).
+- Verified the info/warning lines emit to stderr.
+
 ## 2026-09-03 — Refactor: one shared destination-form (no duplication)
 
 **What we did**
