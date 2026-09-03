@@ -16,6 +16,7 @@ from lets_go.trips import (
     delete_item,
     list_items,
     list_trips,
+    normalize_place,
     validate_budget_caps,
     validate_new_item,
     validate_new_trip,
@@ -111,10 +112,10 @@ with plan_tab:
         need_hotel = hc.checkbox("Need hotel", value=ed.need_hotel if ed else False)
         if st.form_submit_button("Save changes" if ed else "Add destination"):
             leg = DraftLeg(
-                city=city,
-                country=country,
-                from_city=from_city,
-                from_country=from_country,
+                city=normalize_place(city),
+                country=country.strip(),
+                from_city=normalize_place(from_city),
+                from_country=from_country.strip(),
                 start_date=start,
                 end_date=end,
                 need_flight=need_flight,

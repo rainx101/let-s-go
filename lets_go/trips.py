@@ -29,6 +29,13 @@ class DraftLeg:
 # --- pure helpers (testable) ------------------------------------------------
 
 
+def normalize_place(name: str) -> str:
+    """Tidy a place name: trim, collapse inner whitespace, Title Case.
+    Cheap cleanup so obvious formatting differences don't trip up planning;
+    real place validation (geocoding) comes in Phase 2."""
+    return " ".join(name.split()).title()
+
+
 def trip_date_range(legs: list[DraftLeg]) -> tuple[date | None, date | None]:
     """Earliest start and latest end across all legs (ignoring blanks)."""
     starts = [leg.start_date for leg in legs if leg.start_date]
@@ -52,6 +59,9 @@ def validate_new_trip(name: str, legs: list[DraftLeg]) -> list[str]:
             errors.append(f"City {i}: end date must be after the start date.")
         if leg.need_flight and not leg.from_city.strip():
             errors.append(f"City {i}: add a departure city to search flights.")
+        origin = leg.from_city.strip()
+        if origin and origin.casefold() == leg.city.strip().casefold():
+            errors.append(f"City {i}: destination can't be the same as the departure city.")
     return errors
 
 

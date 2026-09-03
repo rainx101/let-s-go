@@ -20,7 +20,10 @@ step**.
 - **Rule:** `validate_budget_caps` — the sum of per-stop caps may not exceed the
   overall trip cap (no trip cap ⇒ no constraint; capless stops ignored). Checked
   at Save alongside the leg validation.
-- **Tests:** 4 new for `validate_budget_caps` (29 total).
+- **Rule:** a destination can't equal its departure city (case/space-insensitive).
+- **Place cleanup:** `normalize_place` trims, collapses whitespace, and Title
+  Cases city names on entry (real place validation via geocoding is Phase 2).
+- **Tests:** 7 new (32 total).
 - Verified: ruff/ty/pytest green; live Neon round-trip (migrate → create with
   per-leg caps → read back → delete; validator both ways) works; app loads clean.
 

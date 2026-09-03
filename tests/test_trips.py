@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from lets_go.trips import (
     DraftLeg,
+    normalize_place,
     trip_date_range,
     validate_budget_caps,
     validate_new_item,
@@ -70,6 +71,19 @@ def test_validate_flight_requires_departure_city():
 def test_validate_ok_with_departure_city_for_flight():
     legs = [_leg(need_flight=True, from_city="Los Angeles")]
     assert validate_new_trip("Japan", legs) == []
+
+
+def test_validate_flags_same_from_and_destination():
+    errors = validate_new_trip("Japan", [_leg(city="Tokyo", from_city=" tokyo ")])
+    assert any("same as the departure city" in e for e in errors)
+
+
+def test_normalize_place_trims_collapses_and_titlecases():
+    assert normalize_place("  new   york ") == "New York"
+
+
+def test_normalize_place_empty_stays_empty():
+    assert normalize_place("   ") == ""
 
 
 def test_validate_requires_name():
