@@ -64,16 +64,19 @@ Goal: the step-by-step pipeline (PRD §9) with the **waterfall budget** (PRD §6
 still on **manual entry** — search is layered on in Phase 3. Draft saved early,
 finalized at the end.
 
-- [ ] **Wizard steps:** Skeleton → **Activities** → **Flight & hotel** →
-      **Restaurants** → **Generate receipt**, with a persistent **budget header**.
-- [ ] **Activities first:** add activities (day optional), **fixed price hand-typed**
-      (search in Phase 3); spent off the top of the budget.
+- [~] **Wizard steps:** Skeleton → **Activities** → **Flight & hotel** →
+      **Restaurants** → **Generate receipt** _(step frame + a total-spent header
+      done in Slice 2; the full waterfall header is Slice 3)_.
+- [x] **Activities first:** add activities (day optional), **fixed price
+      hand-typed** in the Activities step (search in Phase 3).
 - [ ] **Waterfall budget:** activities locked → choose a **flight+hotel** amount
       from the remainder → **restaurants get the rest**; header shows all three.
-- [ ] **Draft persistence:** save the skeleton as a **draft** at setup and update
-      it through the steps; **finalize** on receipt save (PRD §9).
+      _(Slice 3.)_
+- [x] **Draft persistence:** skeleton **saves as a draft**, planned through the
+      steps, **finalized** by "Generate receipt" (PRD §9).
 - [ ] **Generate receipt / full plan:** recommend a **day** for undated
-      activities; **move items up/down** to arrange each day.
+      activities; **move items up/down** to arrange each day. _(Slice 4; a basic
+      Review + finalize exists.)_
 - [ ] **Receipt editing:** swap a hotel/other pick, edit items, **hand-type the
       real amount paid** for an accurate budget; re-finalize.
 - [ ] Finalized trip appears in **Receipts** (also reorderable / editable).
