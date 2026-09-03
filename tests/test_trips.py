@@ -42,6 +42,7 @@ def _leg(
     need_flight: bool = False,
     from_city: str = "",
     budget_cap: Decimal | None = None,
+    round_trip: bool = False,
 ) -> DraftLeg:
     """A valid draft leg (Tokyo, one-night range) with fields overridable."""
     return DraftLeg(
@@ -51,6 +52,7 @@ def _leg(
         need_flight=need_flight,
         from_city=from_city,
         budget_cap=budget_cap,
+        round_trip=round_trip,
     )
 
 
@@ -162,6 +164,16 @@ def test_export_json_empty_when_no_trips():
 def test_leg_endpoint_single_is_the_destination():
     leg = DraftLeg(from_city="LA", from_country="USA", city="Tokyo", country="Japan")
     assert leg_endpoint(leg) == ("Tokyo", "Japan")
+
+
+def test_validate_round_trip_requires_departure_city():
+    errors = validate_new_trip("Japan", [_leg(round_trip=True)])
+    assert any("round trip needs a departure city" in e for e in errors)
+
+
+def test_validate_round_trip_ok_with_departure_city():
+    legs = [_leg(round_trip=True, from_city="Los Angeles")]
+    assert validate_new_trip("Japan", legs) == []
 
 
 def test_leg_endpoint_round_trip_returns_to_the_origin():

@@ -6,6 +6,19 @@ step**.
 
 ---
 
+## 2026-09-03 — Round trip requires departure; Receipts editable per trip
+
+**What we did**
+- **Round trip requires a departure city** (you need somewhere to return to) —
+  added to `validate_new_trip`, caught on add/edit and save.
+- **Receipts reworked:** each trip is its own **expander**; inside it you see the
+  legs, budget bar, item list (edit/remove), and an **Add item** form — instead
+  of one selected trip's controls hanging below. Item widget keys are scoped per
+  trip so multiple trips coexist. Every receipt stays editable.
+- **Tests:** 2 new for the round-trip rule (54 total).
+- Verified: ruff/ty/pytest green; **Streamlit AppTest** renders the full app
+  (past login) with a real trip + item and no exceptions.
+
 ## 2026-09-03 — Hotfix: KeyError on Receipts (legs missing `id`)
 
 **What we did**
