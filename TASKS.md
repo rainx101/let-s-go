@@ -47,9 +47,9 @@ APIs yet. (Reorganized 2026-09-03 to match the guided flow, PRD §9.)
       restaurants counted as **estimates**.
 - [x] **Trip type:** **round-trip / one-way** toggle at setup (stored on the
       trip; the return-to-origin flight segment itself is Phase 2/3). (PRD §6.)
-- [ ] **Trip status:** `trips.status` = **draft / final**; skeleton saves as a
-      draft, finalized on receipt save (PRD §9). _Deferred to Phase 2 (the flow
-      that makes draft/final meaningful)._
+- [x] **Trip status:** `trips.status` = **draft / final**; skeleton saves as a
+      **draft**; Receipts splits Drafts (with Finalize) from Finalized (with
+      Reopen). (PRD §9; Phase 2 Slice 1.)
 - [x] **Item editing:** **change day** and **edit price/cost (+ currency) inline**
       (per-item popover). Manual up/down reordering lives at the **receipt / full
       plan** (Phase 2), where distance ordering (Phase 3) recommends the sequence.

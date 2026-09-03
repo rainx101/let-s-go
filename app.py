@@ -21,6 +21,7 @@ from lets_go.trips import (
     list_items,
     list_trips,
     normalize_place,
+    set_trip_status,
     update_item,
     validate_budget_caps,
     validate_new_item,
@@ -204,7 +205,9 @@ with plan_tab:
         create_trip(name, st.session_state.trip_currency, cap, draft_legs)
         st.session_state.save_errors = []
         number = len(list_trips())  # human-friendly count, not the raw DB id
-        st.session_state.save_success = f"Saved '{name}' — trip #{number}. See the Receipts tab."
+        st.session_state.save_success = (
+            f"Saved '{name}' as draft #{number} — open it in Receipts to add items and finalize."
+        )
         st.session_state.draft_legs = []
         st.session_state.adding = False
         st.session_state.editing_index = None
@@ -419,13 +422,32 @@ with receipts_tab:
             file_name="lets-go-trips.json",
             mime="application/json",
         )
-        for trip in trips:
+
+        def _trip_expander(trip: dict) -> None:
             legs = trip["legs"]
             cities = ", ".join(leg["city"] for leg in legs) or "no cities"
             start, end = _range_bounds(legs)
             span = f"{start} – {end}" if start else "dates TBD"
             with st.expander(f"{trip['name']} · {cities} · {span}"):
+                if trip.get("status") == "draft":
+                    if st.button("✅ Finalize trip", key=f"fin_{trip['id']}"):
+                        set_trip_status(trip["id"], "final")
+                        st.rerun()
+                elif st.button("↩ Reopen as draft", key=f"reopen_{trip['id']}"):
+                    set_trip_status(trip["id"], "draft")
+                    st.rerun()
                 _render_receipt(trip)
+
+        drafts = [t for t in trips if t.get("status") == "draft"]
+        finals = [t for t in trips if t.get("status") != "draft"]
+        if drafts:
+            st.subheader("Drafts (in progress)")
+            for trip in drafts:
+                _trip_expander(trip)
+        if finals:
+            st.subheader("Finalized")
+            for trip in finals:
+                _trip_expander(trip)
 
 with restaurants_tab:
     st.header("Restaurants by city")

@@ -153,14 +153,16 @@ def create_trip(
     budget_cap: Decimal | None,
     legs: list[DraftLeg],
     trip_type: str = "round_trip",
+    status: str = "draft",
 ) -> int:
-    """Insert a trip and its legs atomically; return the new trip id."""
+    """Insert a trip and its legs atomically; return the new trip id.
+    New trips start as a `draft` (finalized later in the guided flow)."""
     conn = get_connection()
     with conn.transaction(), conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO trips (name, home_currency, budget_cap, trip_type) "
-            "VALUES (%s, %s, %s, %s) RETURNING id",
-            (name.strip(), home_currency, budget_cap, trip_type),
+            "INSERT INTO trips (name, home_currency, budget_cap, trip_type, status) "
+            "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (name.strip(), home_currency, budget_cap, trip_type, status),
         )
         row = cur.fetchone()
         assert row is not None  # INSERT ... RETURNING always yields a row
@@ -189,12 +191,19 @@ def create_trip(
     return trip_id
 
 
+def set_trip_status(trip_id: int, status: str) -> None:
+    """Move a trip between 'draft' and 'final'."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("UPDATE trips SET status = %s WHERE id = %s", (status, trip_id))
+
+
 def list_trips() -> list[dict]:
     """All trips (newest first), each with a `legs` list attached."""
     conn = get_connection()
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT id, name, home_currency, budget_cap, trip_type, created_at "
+            "SELECT id, name, home_currency, budget_cap, trip_type, status, created_at "
             "FROM trips ORDER BY created_at DESC"
         )
         trips = cur.fetchall()

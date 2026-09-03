@@ -8,11 +8,15 @@ CREATE TABLE IF NOT EXISTS trips (
     home_currency TEXT NOT NULL DEFAULT 'USD',
     budget_cap    NUMERIC(12, 2),
     trip_type     TEXT NOT NULL DEFAULT 'round_trip',
+    status        TEXT NOT NULL DEFAULT 'final',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Added after the initial trips table shipped; idempotent for existing DBs.
+-- status defaults to 'final' so pre-existing trips read as finished; the guided
+-- flow creates new trips as 'draft'.
 ALTER TABLE trips ADD COLUMN IF NOT EXISTS trip_type TEXT NOT NULL DEFAULT 'round_trip';
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'final';
 
 CREATE TABLE IF NOT EXISTS legs (
     id           SERIAL PRIMARY KEY,
