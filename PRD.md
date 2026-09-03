@@ -1,24 +1,28 @@
 # PRD — Travel Budget & Planning App ("let's go")
 
-Status: **Confirmed direction** (from interview 2026-08-26). Build details still to
-be worked out at implementation time. See `AGENT.md` — do not assume; ask.
+Status: **Confirmed direction** (interview 2026-08-26; flow revised 2026-09-03).
+Build details still to be worked out at implementation time. See `AGENT.md` — do
+not assume; ask.
 
-Last updated: 2026-08-26
+Last updated: 2026-09-03
 
 ---
 
 ## 1. Problem / vision
 
-The user needs a simple way to **plan a trip within a budget** — mainly around
-**flights, hotels, and the spots they want to visit**. They enter **dates and a
-budget range** and get **flight + hotel recommendations** to choose from (and can
-decide up front whether they even need a flight and/or hotel). They can then
-hand-type the **spots** they want to visit; the app helps arrange **when to go
-where**, and the user can edit it. Adding **restaurants** lets the app help plan
-by **distance**. Whole trips are **saved as a collection** (date range + place) to
-revisit later. Hotels can be marked **preferred** so they resurface next time with
-a "liked before" mark; restaurants are rated **like / ok / bad** to build a
-per-city reference list, plus a **wishlist** of restaurants to try.
+The user needs a simple way to **plan a trip within a budget**. The app is a
+**guided, budget-anchored flow** (revised 2026-09-03): first build the trip
+**skeleton** (destinations, dates, overall budget, round-trip or one-way), then
+add the **activities** they want to do (the "need" — fixed prices, searched when
+possible, otherwise hand-typed), then plan **flight + hotel** against the budget
+**left after activities**, leaving the **remainder for restaurants**. At the end
+the user **generates a receipt** — the full day-by-day plan, where undated
+activities get a recommended day, restaurants are placed **near the activities**,
+and items can be **reordered**. Trips are held as a **draft** while planning and
+**finalized** on save, then appear in the **Receipts** collection (still editable —
+swap a hotel, hand-type the real amount paid). Hotels can be marked **preferred**
+so they resurface next time with a "liked before" mark; restaurants are rated
+**like / ok / bad** to build a per-city reference list, plus a **wishlist**.
 
 ## 2. Goals
 
@@ -67,6 +71,19 @@ per-city reference list, plus a **wishlist** of restaurants to try.
 - **Budget input:** a single **cap** (one number), not a min–max range. For a
   multi-city trip the cap covers the **whole trip** (all cities combined), and
   **inter-city flights/trains count as items**.
+- **Trip type (revised 2026-09-03):** **round-trip** or **one-way**, on top of
+  multi-city. Round-trip includes a **return flight to the origin** (its own
+  date); one-way ends at the final destination.
+- **Budget allocation — waterfall (revised 2026-09-03):** the cap is spent in
+  flow order, not split into fixed percentages.
+  1. **Activities first** — concrete, fixed-price line items (the "need"); spent
+     off the top.
+  2. **Flight + hotel** — planned against an **amount the user chooses** from
+     what's left after activities.
+  3. **Restaurants / food** — get the **remainder**.
+  The **budget header shows all three at every step** (activities locked,
+  flight+hotel chosen, food remaining). Applied at the **whole-trip** level first;
+  the existing **per-stop caps** are an optional geographic refinement.
 - **Currency:** one **home currency** chosen by the user; all costs convert to it
   and the budget cap is in it.
 - **Recommendation results display:** **preferred / "liked before" shown on top
@@ -100,8 +117,16 @@ per-city reference list, plus a **wishlist** of restaurants to try.
 
 ## 7. Core concepts / data model (draft — confirm at build)
 
-- **Trip** — name, one or more **cities/legs** each with a **date range**, and a
-  **budget range**. Flags for whether flight/hotel are needed.
+- **Trip** — name, **type** (round-trip / one-way), one or more **cities/legs**
+  each with a **date range**, an overall **budget cap**, and a **status**
+  (**draft** while planning → **final** on save). Flags for whether flight/hotel
+  are needed. (Revised 2026-09-03.)
+- **Activity** — a fixed-price thing to do; assigned to a day (day optional until
+  the receipt recommends one); **searched when possible, else hand-typed**; the
+  first budget category in the waterfall (§6).
+- **Item cost** — every priced item keeps an **editable amount**; an auto/searched
+  value is an **estimate** the user can replace with the **real amount paid** so
+  the receipt budget is accurate (§9 step 6).
 - **Flight** — belongs to a trip/leg; options with prices; one chosen; counts
   toward budget.
 - **Hotel** — belongs to a trip/leg; options with prices; one chosen; counts
@@ -135,18 +160,29 @@ Sources:
 - https://xotelo.com/
 - https://www.searchapi.io/google-hotels-api
 
-## 9. Main flow (as described by the user)
+## 9. Main flow — guided, budget-anchored (revised 2026-09-03)
 
-1. **Main page = Plan.** Enter dates + budget range; choose if flight and/or hotel
-   is needed; add cities/legs.
-2. **Get recommendations.** Auto-search flights/hotels; user picks options.
-3. **Add spots** (optional, hand-typed); app arranges them **by day, by distance**;
-   user edits.
-4. **Add restaurants**; app fits them in by distance; costs estimated.
-5. **Budget** updates as items are chosen/added.
-6. **Save trip** into the collection.
+One guided pipeline (not "save at skeleton time"); the trip is a **draft**
+throughout and **finalized** at the end. The **budget header** is visible from
+step 2 on, showing the waterfall (§6).
+
+1. **Skeleton.** Trip type (round-trip / one-way), destinations + dates, overall
+   budget cap, whether each leg needs flight/hotel → **saved as a draft**.
+2. **Activities** (the "need", done first). Type the activities to do; **day
+   optional**; **fixed price** — **searched when a source exists, otherwise
+   hand-typed**. Spent off the top of the budget.
+3. **Flight & hotel.** Planned against the **amount the user chooses** from the
+   budget **left after activities**. Auto-search + manual fallback (§11).
+4. **Restaurants.** Get the **remaining** budget; placed **near the activities**
+   by distance.
+5. **Generate receipt → full plan.** The day-by-day plan: **recommend a day** for
+   any undated activity; **restaurants sit near the activities**; the user can
+   **move items up/down** to arrange each day.
+6. **Save the trip** → it is **finalized** and appears in the **Receipts** area,
+   which stays **editable** — swap a hotel/other pick, **hand-type the real amount
+   paid** for an accurate budget, reorder items.
 7. **After the trip / anytime:** rate restaurants like/ok/bad, mark hotels
-   preferred, add to restaurant wishlist.
+   preferred, add to the restaurant wishlist.
 8. **Next time in the same city:** preferred hotels and rated restaurants resurface
    as recommendations with the "liked before" mark.
 
@@ -183,6 +219,8 @@ preferred-hotel memory used for future recommendations.
    API confirmed viable in §11; hotels: pick from the small-quota free options).
 2. Which free source supplies the per-city average meal cost.
 3. Which free source provides currency conversion rates.
+4. Whether any free/affordable source can supply **activity prices** (tickets/
+   tours); if not, **hand-type stays the baseline** (§11).
 
 ## 11. API reality-check (results, 2026-08-26)
 
@@ -203,6 +241,12 @@ returns usable data at $0.
   excludes price/rating (Premium, billed from first call); Google Places needs a
   billing account. → Design uses **per-city average as primary** (see §6);
   per-restaurant bracket deferred.
+- **Activity prices — wanted, but no clean free source (evaluate at build).**
+  The user would prefer the app to **search activity/ticket prices** rather than
+  hand-type. Realistically, general activity-price data (tickets, tours) is the
+  same story as hotels/restaurants: paid or narrow free tiers. → Treat activity
+  search as a **best-effort, cache-and-fallback** feature; **hand-typing a fixed
+  price remains the reliable baseline** so the flow never blocks (§9 step 2).
 - **Design implications:**
   - Cache API results; every auto-priced field must be **user-editable**.
   - Lazy-search (don't fetch over-budget/"show all" unless clicked) to conserve

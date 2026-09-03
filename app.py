@@ -17,9 +17,11 @@ from lets_go.trips import (
     dates_overlap,
     delete_item,
     destination_budgets,
+    export_json,
     list_items,
     list_trips,
     normalize_place,
+    update_item,
     validate_budget_caps,
     validate_new_item,
     validate_new_trip,
@@ -40,6 +42,8 @@ with st.sidebar:
 CURRENCIES = ["USD", "EUR", "JPY", "GBP", "AUD", "CAD", "TWD", "KRW", "THB"]
 ITEM_CATEGORIES = ["flight", "hotel", "spot", "restaurant"]
 CATEGORY_ICON = {"flight": "✈️", "hotel": "🏨", "spot": "📍", "restaurant": "🍽️"}
+TRIP_TYPES = {"Round trip": "round_trip", "One-way": "one_way"}
+TRIP_TYPE_LABEL = {v: k for k, v in TRIP_TYPES.items()}
 
 plan_tab, receipts_tab, restaurants_tab = st.tabs(["Plan", "Receipts", "Restaurants by city"])
 
@@ -58,6 +62,7 @@ with plan_tab:
     st.session_state.setdefault("draft_legs", [])
 
     st.text_input("Trip name", key="trip_name")
+    st.radio("Trip type", list(TRIP_TYPES), horizontal=True, key="trip_type_choice")
     c1, c2 = st.columns(2)
     home_currency = c1.selectbox("Home currency", CURRENCIES, key="trip_currency")
     budget_cap = c2.number_input("Budget cap", min_value=0.0, step=100.0, key="trip_budget")
@@ -140,7 +145,8 @@ with plan_tab:
             st.session_state.save_errors = errors
             return
         name = st.session_state.trip_name.strip()
-        create_trip(name, st.session_state.trip_currency, cap, draft_legs)
+        trip_type = TRIP_TYPES[st.session_state.trip_type_choice]
+        create_trip(name, st.session_state.trip_currency, cap, draft_legs, trip_type)
         st.session_state.save_errors = []
         number = len(list_trips())  # human-friendly count, not the raw DB id
         st.session_state.save_success = f"Saved '{name}' — trip #{number}. See the Receipts tab."
@@ -301,7 +307,7 @@ with plan_tab:
             st.error(err)
 
         for it in items:
-            row, remove = st.columns([6, 1])
+            row, edit, remove = st.columns([6, 1, 1])
             icon = CATEGORY_ICON.get(it["category"], "")
             where = leg_label.get(it["leg_id"], "General")
             day = f" · day {it['day']}" if it["day"] else ""
@@ -310,6 +316,30 @@ with plan_tab:
             converted = f" ≈ {home_amount(it)} {home}" if ccy != home else ""
             price = f"{it['cost']} {ccy}{converted}"
             row.write(f"{icon} **{it['name']}** — {price}{est} · {where}{day}")
+            with edit.popover("✏️"):
+                new_cost = st.number_input(
+                    "Cost",
+                    value=float(it["cost"]),
+                    min_value=0.0,
+                    step=10.0,
+                    key=f"icost_{it['id']}",
+                )
+                new_ccy = st.selectbox(
+                    "Currency",
+                    CURRENCIES,
+                    index=CURRENCIES.index(ccy) if ccy in CURRENCIES else 0,
+                    key=f"iccy_{it['id']}",
+                )
+                new_day = st.number_input(
+                    "Day (0 = none)",
+                    value=int(it["day"] or 0),
+                    min_value=0,
+                    step=1,
+                    key=f"iday_{it['id']}",
+                )
+                if st.button("Save", key=f"isave_{it['id']}"):
+                    update_item(it["id"], Decimal(str(new_cost)), new_ccy, int(new_day) or None)
+                    st.rerun()
             if remove.button("✕", key=f"rm_item_{it['id']}"):
                 delete_item(it["id"])
                 st.rerun()
@@ -318,12 +348,20 @@ with receipts_tab:
     st.header("Receipts")
     if not trips:
         st.info("No trips yet. Create one in the Plan tab.")
+    else:
+        st.download_button(
+            "⬇️ Export all trips (JSON)",
+            data=export_json(trips, {t["id"]: list_items(t["id"]) for t in trips}),
+            file_name="lets-go-trips.json",
+            mime="application/json",
+        )
     for trip in trips:
         legs = trip["legs"]
         cities = ", ".join(leg["city"] for leg in legs) or "no cities"
         start, end = _range_bounds(legs)
         span = f"{start} – {end}" if start else "dates TBD"
         with st.expander(f"{trip['name']} · {cities} · {span}"):
+            st.caption(TRIP_TYPE_LABEL.get(trip.get("trip_type"), "Round trip"))
             if trip["budget_cap"] is not None:
                 st.write(f"Budget cap: {trip['budget_cap']} {trip['home_currency']}")
             for leg in legs:

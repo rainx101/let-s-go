@@ -7,8 +7,12 @@ CREATE TABLE IF NOT EXISTS trips (
     name          TEXT NOT NULL,
     home_currency TEXT NOT NULL DEFAULT 'USD',
     budget_cap    NUMERIC(12, 2),
+    trip_type     TEXT NOT NULL DEFAULT 'round_trip',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Added after the initial trips table shipped; idempotent for existing DBs.
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS trip_type TEXT NOT NULL DEFAULT 'round_trip';
 
 CREATE TABLE IF NOT EXISTS legs (
     id           SERIAL PRIMARY KEY,
