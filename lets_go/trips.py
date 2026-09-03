@@ -229,6 +229,37 @@ def list_trips() -> list[dict]:
     return trips
 
 
+def update_leg(leg_id: int, leg: DraftLeg) -> None:
+    """Edit a saved destination (leg) in place."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE legs SET city=%s, country=%s, from_city=%s, from_country=%s, "
+            "start_date=%s, end_date=%s, need_flight=%s, need_hotel=%s, round_trip=%s, "
+            "budget_cap=%s WHERE id=%s",
+            (
+                leg.city.strip(),
+                leg.country.strip() or None,
+                leg.from_city.strip() or None,
+                leg.from_country.strip() or None,
+                leg.start_date,
+                leg.end_date,
+                leg.need_flight,
+                leg.need_hotel,
+                leg.round_trip,
+                leg.budget_cap,
+                leg_id,
+            ),
+        )
+
+
+def delete_leg(leg_id: int) -> None:
+    """Delete a saved destination (leg); its items cascade."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM legs WHERE id = %s", (leg_id,))
+
+
 def add_item(
     trip_id: int,
     leg_id: int | None,

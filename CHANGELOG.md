@@ -6,6 +6,19 @@ step**.
 
 ---
 
+## 2026-09-03 — Edit/delete destinations in a draft; finalized "Resume planning"
+
+**What we did**
+- **Edit or delete destinations** of a saved trip: the planning steps gain a
+  **"🗺 Destinations — edit or delete"** section — each leg has ✏️ Edit (inline
+  form, validated: dates/overlap/from≠to) and 🗑 Delete (confirm; items cascade).
+  New data helpers `update_leg` / `delete_leg`.
+- **Finalized "Resume planning"** now reopens the trip as a draft **and** makes it
+  active, so you continue in the Plan tab's steps in one click (was a two-step
+  "Reopen as draft").
+- Verified with AppTest (edit + delete a leg with cascade; editor renders per
+  leg; finalized resume → draft + active).
+
 ## 2026-09-03 — "Start planning" label + delete a trip
 
 - The skeleton's primary button now reads **"Start planning"** (it saves the

@@ -15,6 +15,7 @@ from lets_go.trips import (
     create_trip,
     dates_overlap,
     delete_item,
+    delete_leg,
     delete_trip,
     destination_budgets,
     export_json,
@@ -24,6 +25,7 @@ from lets_go.trips import (
     normalize_place,
     set_trip_status,
     update_item,
+    update_leg,
     validate_budget_caps,
     validate_new_item,
     validate_new_trip,
@@ -228,6 +230,128 @@ def _delete_trip_control(trip: dict) -> None:
         st.rerun()
 
 
+# --- editing a saved trip's destinations (legs) ------------------------------
+
+
+def _leg_from_dict(leg: dict) -> DraftLeg:
+    return DraftLeg(
+        city=leg["city"],
+        from_city=leg.get("from_city") or "",
+        start_date=leg["start_date"],
+        end_date=leg["end_date"],
+        round_trip=leg.get("round_trip", False),
+    )
+
+
+def _seed_leg(prefix: str, leg: dict) -> None:
+    g = st.session_state
+    g[prefix + "from_city"] = leg.get("from_city") or ""
+    g[prefix + "from_country"] = leg.get("from_country") or ""
+    g[prefix + "city"] = leg["city"]
+    g[prefix + "country"] = leg.get("country") or ""
+    g[prefix + "start"] = leg["start_date"] or date.today()
+    g[prefix + "end"] = leg["end_date"] or date.today() + timedelta(days=1)
+    g[prefix + "flight"] = leg["need_flight"]
+    g[prefix + "hotel"] = leg["need_hotel"]
+    g[prefix + "round"] = leg.get("round_trip", False)
+    g[prefix + "cap"] = float(leg["budget_cap"]) if leg.get("budget_cap") else None
+
+
+def _draftleg_from(prefix: str) -> DraftLeg:
+    g = st.session_state
+    return DraftLeg(
+        city=normalize_place(g[prefix + "city"]),
+        country=g[prefix + "country"].strip(),
+        from_city=normalize_place(g[prefix + "from_city"]),
+        from_country=g[prefix + "from_country"].strip(),
+        start_date=g[prefix + "start"],
+        end_date=g[prefix + "end"],
+        need_flight=g[prefix + "flight"],
+        need_hotel=g[prefix + "hotel"],
+        round_trip=g[prefix + "round"],
+        budget_cap=Decimal(str(g[prefix + "cap"])) if g[prefix + "cap"] else None,
+    )
+
+
+def _leg_fields(prefix: str) -> None:
+    oc1, oc2 = st.columns(2)
+    oc1.text_input("From city (optional)", key=prefix + "from_city")
+    oc2.text_input("From country (optional)", key=prefix + "from_country")
+    tc1, tc2 = st.columns(2)
+    tc1.text_input("To city", key=prefix + "city")
+    tc2.text_input("Country (optional)", key=prefix + "country")
+    st.checkbox("Round trip (return to the From city)", key=prefix + "round")
+    dc1, dc2 = st.columns(2)
+    dc1.date_input("Start date", key=prefix + "start")
+    dc2.date_input("End date", key=prefix + "end")
+    st.number_input(
+        "Budget cap for this stop (optional)",
+        min_value=0.0,
+        step=100.0,
+        placeholder="e.g. 500",
+        key=prefix + "cap",
+    )
+    fc, hc = st.columns(2)
+    fc.checkbox("Need flight", key=prefix + "flight")
+    hc.checkbox("Need hotel", key=prefix + "hotel")
+
+
+def _destinations_editor(trip: dict) -> None:
+    legs = trip["legs"]
+    for leg in legs:
+        lid = leg["id"]
+        prefix = f"leg{lid}_"
+        edit_key = f"editleg_{lid}"
+        del_key = f"delleg_{lid}"
+        with st.container(border=True):
+            if st.session_state.get(edit_key):
+                _leg_fields(prefix)
+                for e in st.session_state.get(f"legerr_{lid}", []):
+                    st.warning(e)
+                c1, c2 = st.columns(2)
+                if c1.button("Save changes", key=f"savleg_{lid}", type="primary"):
+                    edited = _draftleg_from(prefix)
+                    others = [_leg_from_dict(o) for o in legs if o["id"] != lid]
+                    problems = validate_new_trip("_", [edited])
+                    if any(dates_overlap(edited, o) for o in others):
+                        problems.append("Dates overlap with another destination.")
+                    if problems:
+                        st.session_state[f"legerr_{lid}"] = problems
+                    else:
+                        update_leg(lid, edited)
+                        st.session_state[edit_key] = False
+                        st.session_state[f"legerr_{lid}"] = []
+                    st.rerun()
+                if c2.button("Cancel", key=f"cnlleg_{lid}"):
+                    st.session_state[edit_key] = False
+                    st.session_state[f"legerr_{lid}"] = []
+                    st.rerun()
+                continue
+            arrow = "⇄" if leg.get("round_trip") else "→"
+            origin = f"{leg['from_city']} {arrow} " if leg.get("from_city") else ""
+            place = f"{origin}**{leg['city']}**" + (f", {leg['country']}" if leg["country"] else "")
+            st.markdown(place)
+            st.caption(f"{leg['start_date'] or '?'} → {leg['end_date'] or '?'}")
+            c1, c2 = st.columns(2)
+            if c1.button("✏️ Edit", key=f"edleg_{lid}"):
+                _seed_leg(prefix, leg)
+                st.session_state[edit_key] = True
+                st.rerun()
+            if st.session_state.get(del_key):
+                st.warning("Delete this destination and its items?")
+                d1, d2 = st.columns(2)
+                if d1.button("Yes, delete", key=f"yesdelleg_{lid}"):
+                    delete_leg(lid)
+                    st.session_state[del_key] = False
+                    st.rerun()
+                if d2.button("Cancel", key=f"cnldelleg_{lid}"):
+                    st.session_state[del_key] = False
+                    st.rerun()
+            elif c2.button("🗑 Delete", key=f"delbtn_{lid}"):
+                st.session_state[del_key] = True
+                st.rerun()
+
+
 # --- guided planning steps for a draft ---------------------------------------
 
 
@@ -242,6 +366,9 @@ def _render_steps(trip: dict) -> None:
 
     home = trip["home_currency"]
     _budget_bar(trip, total_spent([float(_home_amount(it, home)) for it in list_items(tid)]))
+
+    with st.expander("🗺 Destinations — edit or delete"):
+        _destinations_editor(trip)
 
     st.session_state.setdefault("plan_step", STEPS[0])
     step = st.radio("Step", STEPS, horizontal=True, key="plan_step", label_visibility="collapsed")
@@ -564,9 +691,11 @@ with receipts_tab:
                 start, end = _range_bounds(legs)
                 span = f"{start} – {end}" if start else "dates TBD"
                 with st.expander(f"{trip['name']} · {cities} · {span}"):
-                    if st.button("↩ Reopen as draft", key=f"reopen_{trip['id']}"):
+                    if st.button("▶️ Resume planning", key=f"resume_final_{trip['id']}"):
                         set_trip_status(trip["id"], "draft")
+                        st.session_state.active_trip_id = trip["id"]
                         st.rerun()
+                    st.caption("Reopens as a draft — continue in the Plan tab.")
                     _delete_trip_control(trip)
                     _render_receipt(trip)
 
