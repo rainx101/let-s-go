@@ -149,10 +149,11 @@ def _item_manager(trip: dict, categories: list[str], show_add: bool, tag: str) -
 
     kp = f"add_{tag}_{tid}_"
     st.session_state.setdefault(kp + "err", [])
+    st.session_state.setdefault(kp + "cost", None)  # empty by default; no value= (avoids a warning)
     st.markdown("**Add**")
     pc1, pc2 = st.columns([3, 1])
     item_cost = pc1.number_input(
-        "Cost", min_value=0.0, step=10.0, value=None, placeholder="e.g. 40", key=kp + "cost"
+        "Cost", min_value=0.0, step=10.0, placeholder="e.g. 40", key=kp + "cost"
     )
     item_ccy = pc2.selectbox(
         "Currency",
