@@ -208,6 +208,8 @@ def _render_receipt(trip: dict) -> None:
     _legs_summary(trip["legs"])
     spent = total_spent([float(_home_amount(it, home)) for it in list_items(trip["id"])])
     _budget_bar(trip, spent)
+    with st.expander("🗺 Destinations — edit or delete"):
+        _destinations_editor(trip)
     _item_manager(trip, ALL_CATEGORIES, show_add=True, tag="rcpt")
 
 
@@ -652,11 +654,6 @@ with receipts_tab:
                 start, end = _range_bounds(legs)
                 span = f"{start} – {end}" if start else "dates TBD"
                 with st.expander(f"{trip['name']} · {cities} · {span}"):
-                    if st.button("▶️ Resume planning", key=f"resume_final_{trip['id']}"):
-                        set_trip_status(trip["id"], "draft")
-                        st.session_state.active_trip_id = trip["id"]
-                        st.rerun()
-                    st.caption("Reopens as a draft — continue in the Plan tab.")
                     _delete_trip_control(trip)
                     _render_receipt(trip)
 
