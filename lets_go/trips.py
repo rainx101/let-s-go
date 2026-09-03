@@ -198,6 +198,13 @@ def set_trip_status(trip_id: int, status: str) -> None:
         cur.execute("UPDATE trips SET status = %s WHERE id = %s", (status, trip_id))
 
 
+def delete_trip(trip_id: int) -> None:
+    """Delete a trip and its legs + items (legs/items cascade)."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM trips WHERE id = %s", (trip_id,))
+
+
 def list_trips() -> list[dict]:
     """All trips (newest first), each with a `legs` list attached."""
     conn = get_connection()
