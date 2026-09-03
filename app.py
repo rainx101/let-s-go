@@ -287,7 +287,7 @@ with plan_tab:
     else:
         st.button("➕ Add destination", on_click=_open_add)
 
-    st.button("Save trip", type="primary", on_click=_save_trip)
+    st.button("Save as draft", type="primary", on_click=_save_trip)
     for err in st.session_state.save_errors:
         st.error(err)
     if st.session_state.save_success:
