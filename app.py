@@ -328,7 +328,10 @@ def _render_receipt(trip: dict) -> None:
         st.progress(budget_progress(cap, spent))
         left = remaining_budget(cap, [spent])
         msg = f"Spent {spent:,.2f} / {cap:,.2f} {home} · {left:,.2f} left"
-        st.error(f"{msg} — over budget") if is_over_budget(cap, [spent]) else st.caption(msg)
+        if is_over_budget(cap, [spent]):
+            st.error(f"{msg} — over budget")
+        else:
+            st.caption(msg)
     else:
         st.caption(f"Spent {spent:,.2f} {home} · no budget cap set")
 
