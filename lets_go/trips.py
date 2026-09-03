@@ -43,6 +43,14 @@ def trip_date_range(legs: list[DraftLeg]) -> tuple[date | None, date | None]:
     return (min(starts) if starts else None, max(ends) if ends else None)
 
 
+def dates_overlap(a: DraftLeg, b: DraftLeg) -> bool:
+    """True if two legs' date ranges genuinely overlap. Sharing a single
+    boundary day (one ends the day the other starts) is allowed."""
+    if not (a.start_date and a.end_date and b.start_date and b.end_date):
+        return False
+    return a.start_date < b.end_date and b.start_date < a.end_date
+
+
 def validate_new_trip(name: str, legs: list[DraftLeg]) -> list[str]:
     """Return a list of problems with the draft trip. Empty list means valid."""
     errors: list[str] = []
@@ -62,6 +70,12 @@ def validate_new_trip(name: str, legs: list[DraftLeg]) -> list[str]:
         origin = leg.from_city.strip()
         if origin and origin.casefold() == leg.city.strip().casefold():
             errors.append(f"City {i}: destination can't be the same as the departure city.")
+    for a_i in range(len(legs)):
+        for b_i in range(a_i + 1, len(legs)):
+            if dates_overlap(legs[a_i], legs[b_i]):
+                na = legs[a_i].city.strip() or f"City {a_i + 1}"
+                nb = legs[b_i].city.strip() or f"City {b_i + 1}"
+                errors.append(f"Dates for {na} and {nb} overlap.")
     return errors
 
 
