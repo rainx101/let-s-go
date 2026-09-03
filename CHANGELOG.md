@@ -6,6 +6,29 @@ step**.
 
 ---
 
+## 2026-09-03 — Expedia-style destination builder (from→to, required dates)
+
+**What we did**
+- **Schema** (`lets_go/schema.sql`): `legs` gains `from_city` + `from_country`
+  (flight origin), added idempotently (`ADD COLUMN IF NOT EXISTS`) so existing
+  Neon DBs migrate on startup. Verified live.
+- **Data layer** (`lets_go/trips.py`): `DraftLeg` carries the origin;
+  `create_trip`/`list_trips` read+write it. Validation reworked — dates are now
+  **required**, **end must be after start** (no same-day/reversed), and a
+  **departure city is required when "Need flight" is on**.
+- **Plan tab:** rebuilt the create flow — destinations render as a list with an
+  **"Add destination"** box beneath, each with **From city/From country
+  (optional)** → **To city/Country** → a required **date-range** picker →
+  need-flight/hotel. Receipts show **from → to**.
+- **Tests:** date/flight rules updated + 4 new (11 trip tests; 25 total).
+- Verified: ruff/ty/pytest green; live Neon round-trip (migrate → create with
+  origin → read back → delete) works; app loads clean.
+
+**Next step**
+- Rest of Phase 1: inline item editing (move up/down, change day, edit price)
+  and export to file. Then Phase 2: two-stage search (per-destination flight +
+  hotel, budget-anchored).
+
 ## 2026-09-03 — Phase 1 slice 2: priced items + budget bar
 
 **What we did**
