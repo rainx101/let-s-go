@@ -6,6 +6,18 @@ step**.
 
 ---
 
+## 2026-09-03 — Refactor: one shared destination-form (no duplication)
+
+**What we did**
+- Removed the duplicated leg-form logic. One shared set —
+  `_leg_field_defaults` · `_leg_field_widgets` · `_draftleg_from` ·
+  `_draftleg_from_row` · `_seed_leg_fields` — is now used by **both** the skeleton
+  builder (in-memory `draft_legs`) and the steps' destination editor (DB legs).
+  The skeleton's nested `_defaults`/`_seed`/`_leg_from` and the editor's
+  `_leg_fields`/`_seed_leg`/`_leg_from_dict` are gone.
+- Verified with AppTest: skeleton add + inline edit (via the shared form)
+  persists, then opens the steps with the leg editor; no behavior change.
+
 ## 2026-09-03 — Edit/delete destinations in a draft; finalized "Resume planning"
 
 **What we did**
