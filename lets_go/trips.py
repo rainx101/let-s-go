@@ -77,6 +77,8 @@ def validate_new_trip(name: str, legs: list[DraftLeg]) -> list[str]:
             errors.append(f"City {i}: end date must be after the start date.")
         if leg.need_flight and not leg.from_city.strip():
             errors.append(f"City {i}: add a departure city to search flights.")
+        if leg.round_trip and not leg.from_city.strip():
+            errors.append(f"City {i}: a round trip needs a departure city to return to.")
         origin = leg.from_city.strip()
         if origin and origin.casefold() == leg.city.strip().casefold():
             errors.append(f"City {i}: destination can't be the same as the departure city.")
