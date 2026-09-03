@@ -6,6 +6,13 @@ step**.
 
 ---
 
+## 2026-09-03 — Hotfix: KeyError on Receipts (legs missing `id`)
+
+**What we did**
+- `list_trips` didn't select the legs' `id`, so the Receipts item picker
+  (`leg["id"]`) crashed with `KeyError`. Added `id` to the legs SELECT.
+- Verified live: `list_trips()` legs now include `id`.
+
 ## 2026-09-03 — Per-card round trip + builder rework; items moved to Receipts
 
 **What we did**

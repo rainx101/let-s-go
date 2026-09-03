@@ -197,7 +197,7 @@ def list_trips() -> list[dict]:
         )
         trips = cur.fetchall()
         cur.execute(
-            "SELECT trip_id, city, country, from_city, from_country, start_date, end_date, "
+            "SELECT id, trip_id, city, country, from_city, from_country, start_date, end_date, "
             "need_flight, need_hotel, round_trip, budget_cap, position FROM legs "
             "ORDER BY position"
         )
