@@ -473,7 +473,7 @@ def _render_skeleton() -> None:
     else:
         st.button("➕ Add destination", on_click=_open_add)
 
-    st.button("Save as draft", type="primary", on_click=_save_trip)
+    st.button("Start planning", type="primary", on_click=_save_trip)
     for err in st.session_state.save_errors:
         st.error(err)
 

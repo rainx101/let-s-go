@@ -6,6 +6,11 @@ step**.
 
 ---
 
+## 2026-09-03 — Relabel skeleton save button to "Start planning"
+
+- The skeleton's primary button now reads **"Start planning"** (it saves the
+  draft and drops into the guided steps) — clearer than "Save as draft".
+
 ## 2026-09-03 — Fix: new draft now opens in the steps (not just Receipts)
 
 **What we did**
