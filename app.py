@@ -209,13 +209,23 @@ def _render_receipt(trip: dict) -> None:
 
 
 def _delete_trip_control(trip: dict) -> None:
-    with st.popover("🗑 Delete trip"):
-        st.write(f"Permanently delete **{trip['name']}** and everything in it?")
-        if st.button("Yes, delete", key=f"deltrip_{trip['id']}"):
-            if st.session_state.get("active_trip_id") == trip["id"]:
+    tid = trip["id"]
+    confirm_key = f"confirm_del_{tid}"  # per-trip so one delete can't affect another
+    if st.session_state.get(confirm_key):
+        st.warning(f"Permanently delete **{trip['name']}** and everything in it?")
+        yes, no = st.columns(2)
+        if yes.button("Yes, delete", key=f"yesdel_{tid}"):
+            if st.session_state.get("active_trip_id") == tid:
                 st.session_state.active_trip_id = None
-            delete_trip(trip["id"])
+            delete_trip(tid)
+            st.session_state[confirm_key] = False
             st.rerun()
+        if no.button("Cancel", key=f"canceldel_{tid}"):
+            st.session_state[confirm_key] = False
+            st.rerun()
+    elif st.button("🗑 Delete trip", key=f"askdel_{tid}"):
+        st.session_state[confirm_key] = True
+        st.rerun()
 
 
 # --- guided planning steps for a draft ---------------------------------------
@@ -554,12 +564,10 @@ with receipts_tab:
                 start, end = _range_bounds(legs)
                 span = f"{start} – {end}" if start else "dates TBD"
                 with st.expander(f"{trip['name']} · {cities} · {span}"):
-                    rc1, rc2 = st.columns(2)
-                    if rc1.button("↩ Reopen as draft", key=f"reopen_{trip['id']}"):
+                    if st.button("↩ Reopen as draft", key=f"reopen_{trip['id']}"):
                         set_trip_status(trip["id"], "draft")
                         st.rerun()
-                    with rc2:
-                        _delete_trip_control(trip)
+                    _delete_trip_control(trip)
                     _render_receipt(trip)
 
 with restaurants_tab:
