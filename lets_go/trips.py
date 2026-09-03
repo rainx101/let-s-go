@@ -156,15 +156,16 @@ def add_item(
     category: str,
     name: str,
     cost: Decimal,
+    currency: str,
     day: int | None,
 ) -> int:
-    """Insert one planned item (cost in the trip's home currency); return its id."""
+    """Insert one planned item (cost in its original `currency`); return its id."""
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO items (trip_id, leg_id, category, name, cost, day) "
-            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-            (trip_id, leg_id, category, name.strip(), cost, day),
+            "INSERT INTO items (trip_id, leg_id, category, name, cost, currency, day) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+            (trip_id, leg_id, category, name.strip(), cost, currency, day),
         )
         row = cur.fetchone()
         assert row is not None  # INSERT ... RETURNING always yields a row
@@ -176,7 +177,7 @@ def list_items(trip_id: int) -> list[dict]:
     conn = get_connection()
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.day, i.position "
+            "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.currency, i.day, i.position "
             "FROM items i LEFT JOIN legs l ON l.id = i.leg_id "
             "WHERE i.trip_id = %s "
             "ORDER BY l.position NULLS FIRST, i.day NULLS FIRST, i.position, i.id",

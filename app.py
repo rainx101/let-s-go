@@ -8,6 +8,7 @@ import streamlit as st
 
 from lets_go.auth import require_login
 from lets_go.budget import budget_progress, is_over_budget, remaining_budget, total_spent
+from lets_go.currency import convert
 from lets_go.db import health_check, init_db
 from lets_go.trips import (
     DraftLeg,
@@ -160,30 +161,44 @@ with plan_tab:
         )
         trip = next(t for t in trips if t["id"] == trip_id)
         legs = trip["legs"]
-        currency = trip["home_currency"]
+        home = trip["home_currency"]
         items = list_items(trip_id)
 
-        spent = total_spent([float(it["cost"]) for it in items])
+        def home_amount(item: dict) -> Decimal:
+            return convert(item["cost"], item["currency"] or home, home)
+
+        spent = total_spent([float(home_amount(it)) for it in items])
         if trip["budget_cap"] is not None:
             cap = float(trip["budget_cap"])
             st.progress(budget_progress(cap, spent))
             left = remaining_budget(cap, [spent])
-            msg = f"Spent {spent:,.2f} / {cap:,.2f} {currency} · {left:,.2f} left"
+            msg = f"Spent {spent:,.2f} / {cap:,.2f} {home} · {left:,.2f} left"
             if is_over_budget(cap, [spent]):
                 st.error(f"{msg} — over budget")
             else:
                 st.caption(msg)
         else:
-            st.caption(f"Spent {spent:,.2f} {currency} · no budget cap set")
+            st.caption(f"Spent {spent:,.2f} {home} · no budget cap set")
 
         # leg picker options: each leg, plus "General" (no city)
         leg_choices: list[int | None] = [leg["id"] for leg in legs] + [None]
         leg_label = {leg["id"]: leg["city"] for leg in legs}
 
+        # Cost + currency live outside the form so the conversion previews as you type.
+        pc1, pc2 = st.columns([3, 1])
+        item_cost = pc1.number_input("Cost", min_value=0.0, step=10.0, key="new_item_cost")
+        item_currency = pc2.selectbox(
+            "Currency",
+            CURRENCIES,
+            index=CURRENCIES.index(home) if home in CURRENCIES else 0,
+            key="new_item_ccy",
+        )
+        if item_cost and item_currency != home:
+            preview = convert(Decimal(str(item_cost)), item_currency, home)
+            st.caption(f"≈ {preview} {home}")
+
         with st.form("add_item", clear_on_submit=True):
-            ic1, ic2 = st.columns(2)
-            category = ic1.selectbox("Type", ITEM_CATEGORIES)
-            item_cost = ic2.number_input(f"Cost ({currency})", min_value=0.0, step=10.0)
+            category = st.selectbox("Type", ITEM_CATEGORIES)
             item_name = st.text_input("Name")
             lc1, lc2 = st.columns(2)
             item_leg = lc1.selectbox(
@@ -204,6 +219,7 @@ with plan_tab:
                         category,
                         item_name,
                         Decimal(str(item_cost)),
+                        item_currency,
                         item_day or None,
                     )
                     st.rerun()
@@ -214,7 +230,10 @@ with plan_tab:
             where = leg_label.get(it["leg_id"], "General")
             day = f" · day {it['day']}" if it["day"] else ""
             est = " (est.)" if it["category"] == "restaurant" else ""
-            row.write(f"{icon} **{it['name']}** — {it['cost']} {currency}{est} · {where}{day}")
+            ccy = it["currency"] or home
+            converted = f" ≈ {home_amount(it)} {home}" if ccy != home else ""
+            price = f"{it['cost']} {ccy}{converted}"
+            row.write(f"{icon} **{it['name']}** — {price}{est} · {where}{day}")
             if remove.button("✕", key=f"rm_item_{it['id']}"):
                 delete_item(it["id"])
                 st.rerun()

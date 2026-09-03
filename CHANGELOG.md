@@ -23,7 +23,13 @@ step**.
 - **Rule:** a destination can't equal its departure city (case/space-insensitive).
 - **Place cleanup:** `normalize_place` trims, collapses whitespace, and Title
   Cases city names on entry (real place validation via geocoding is Phase 2).
-- **Tests:** 7 new (32 total).
+- **Currency conversion (static rates):** new `lets_go/currency.py` with
+  `convert` + a placeholder rate table (live source is Phase 2). Items now store
+  their **original amount + currency**; the add-item form has a **currency
+  selector with a live "≈ home" preview**, the item list shows original ≈
+  converted, and the **budget sums converted home-currency amounts** — so you
+  plan in USD with foreign costs counted correctly.
+- **Tests:** 11 new (36 total).
 - Verified: ruff/ty/pytest green; live Neon round-trip (migrate → create with
   per-leg caps → read back → delete; validator both ways) works; app loads clean.
 

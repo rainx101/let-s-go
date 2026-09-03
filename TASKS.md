@@ -40,8 +40,9 @@ Goal: build, edit, and save a trip with a working budget — no external APIs ye
 - [x] Toggle per leg: **need flight? need hotel?**
 - [x] **Add item manually** (flight/hotel/spot/restaurant) with a typed cost;
       assign to a **day** (and city/leg).
-- [ ] **Currency:** every cost stored + shown converted to the **home currency**
-      (static/placeholder rate for now; live source in Phase 2).
+- [x] **Currency:** every cost stored (original amount + currency) + shown
+      converted to the **home currency** (static/placeholder rate for now; live
+      source in Phase 2).
 - [x] **Running budget** vs cap, with a visible total/remaining indicator;
       restaurants counted as **estimates**.
 - [ ] **Plan tab editing:** move item **up/down**, **change day**, and **edit
