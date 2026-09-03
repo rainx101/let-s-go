@@ -7,6 +7,10 @@ from typing import LiteralString, cast
 import psycopg
 import streamlit as st
 
+from lets_go.log import get_logger
+
+logger = get_logger(__name__)
+
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
@@ -38,6 +42,7 @@ def get_connection() -> psycopg.Connection:
     """
     conn = _cached_connection()
     if conn.closed:
+        logger.warning("Neon connection was closed (idle/scale-to-zero); reconnecting")
         _cached_connection.clear()
         conn = _cached_connection()
     return conn

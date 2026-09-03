@@ -9,6 +9,9 @@ from decimal import Decimal
 from psycopg.rows import dict_row
 
 from lets_go.db import get_connection
+from lets_go.log import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -188,6 +191,7 @@ def create_trip(
                     pos,
                 ),
             )
+    logger.info("Created trip %s '%s' (%s legs, %s)", trip_id, name.strip(), len(legs), status)
     return trip_id
 
 
@@ -196,6 +200,7 @@ def set_trip_status(trip_id: int, status: str) -> None:
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute("UPDATE trips SET status = %s WHERE id = %s", (status, trip_id))
+    logger.info("Trip %s status -> %s", trip_id, status)
 
 
 def delete_trip(trip_id: int) -> None:
@@ -203,6 +208,7 @@ def delete_trip(trip_id: int) -> None:
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute("DELETE FROM trips WHERE id = %s", (trip_id,))
+    logger.info("Deleted trip %s", trip_id)
 
 
 def list_trips() -> list[dict]:
@@ -227,6 +233,38 @@ def list_trips() -> list[dict]:
     for trip in trips:
         trip["legs"] = by_trip.get(trip["id"], [])
     return trips
+
+
+def update_leg(leg_id: int, leg: DraftLeg) -> None:
+    """Edit a saved destination (leg) in place."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE legs SET city=%s, country=%s, from_city=%s, from_country=%s, "
+            "start_date=%s, end_date=%s, need_flight=%s, need_hotel=%s, round_trip=%s, "
+            "budget_cap=%s WHERE id=%s",
+            (
+                leg.city.strip(),
+                leg.country.strip() or None,
+                leg.from_city.strip() or None,
+                leg.from_country.strip() or None,
+                leg.start_date,
+                leg.end_date,
+                leg.need_flight,
+                leg.need_hotel,
+                leg.round_trip,
+                leg.budget_cap,
+                leg_id,
+            ),
+        )
+
+
+def delete_leg(leg_id: int) -> None:
+    """Delete a saved destination (leg); its items cascade."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM legs WHERE id = %s", (leg_id,))
+    logger.info("Deleted leg %s", leg_id)
 
 
 def add_item(

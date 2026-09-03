@@ -6,6 +6,44 @@ step**.
 
 ---
 
+## 2026-09-03 — Application logging (surfaces in Streamlit Cloud logs)
+
+**What we did**
+- Added `lets_go/log.py` — one stderr handler on the `lets_go` package logger at
+  INFO (so lines reach the Streamlit Cloud log pane); modules use
+  `get_logger(__name__)`.
+- **Milestones (info):** trip created / status change / trip deleted / leg
+  deleted. **Problem (warning):** the previously-silent **Neon reconnect** now
+  logs a warning. Real exceptions still surface loudly (CLAUDE.md).
+- Complements Streamlit's crash reporting: gives a trail before an error and
+  catches non-crashing events (e.g. the reconnect).
+- Verified the info/warning lines emit to stderr.
+
+## 2026-09-03 — Refactor: one shared destination-form (no duplication)
+
+**What we did**
+- Removed the duplicated leg-form logic. One shared set —
+  `_leg_field_defaults` · `_leg_field_widgets` · `_draftleg_from` ·
+  `_draftleg_from_row` · `_seed_leg_fields` — is now used by **both** the skeleton
+  builder (in-memory `draft_legs`) and the steps' destination editor (DB legs).
+  The skeleton's nested `_defaults`/`_seed`/`_leg_from` and the editor's
+  `_leg_fields`/`_seed_leg`/`_leg_from_dict` are gone.
+- Verified with AppTest: skeleton add + inline edit (via the shared form)
+  persists, then opens the steps with the leg editor; no behavior change.
+
+## 2026-09-03 — Edit/delete destinations in a draft; finalized "Resume planning"
+
+**What we did**
+- **Edit or delete destinations** of a saved trip: the planning steps gain a
+  **"🗺 Destinations — edit or delete"** section — each leg has ✏️ Edit (inline
+  form, validated: dates/overlap/from≠to) and 🗑 Delete (confirm; items cascade).
+  New data helpers `update_leg` / `delete_leg`.
+- **Finalized "Resume planning"** now reopens the trip as a draft **and** makes it
+  active, so you continue in the Plan tab's steps in one click (was a two-step
+  "Reopen as draft").
+- Verified with AppTest (edit + delete a leg with cascade; editor renders per
+  leg; finalized resume → draft + active).
+
 ## 2026-09-03 — "Start planning" label + delete a trip
 
 - The skeleton's primary button now reads **"Start planning"** (it saves the
