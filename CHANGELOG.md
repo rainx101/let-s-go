@@ -6,6 +6,16 @@ step**.
 
 ---
 
+## 2026-09-03 — Fix: new draft now opens in the steps (not just Receipts)
+
+**What we did**
+- After **Save as draft**, the Plan tab fell back to the skeleton (draft only in
+  Receipts) because the page's `trips` snapshot was read *before* the new draft
+  existed, so `active_trip_id` wasn't found in it. Now, when `active_trip_id` is
+  set but missing from that snapshot, we **re-fetch** — so a just-saved draft
+  opens straight into the guided steps.
+- Verified with AppTest.
+
 ## 2026-09-03 — Hotfix: reconnect stale Neon connection
 
 **What we did**

@@ -486,6 +486,11 @@ with plan_tab:
         st.session_state.plan_msg = ""
     active_id = st.session_state.get("active_trip_id")
     active_trip = next((t for t in trips if t["id"] == active_id), None) if active_id else None
+    if active_id and active_trip is None:
+        # `trips` was read at the top of the run, before a just-saved draft
+        # existed; re-fetch so a new draft opens in the steps rather than falling
+        # back to the skeleton (with the draft only showing in Receipts).
+        active_trip = next((t for t in list_trips() if t["id"] == active_id), None)
     if active_trip is not None:
         _render_steps(active_trip)
     else:
