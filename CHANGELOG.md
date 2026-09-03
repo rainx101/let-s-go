@@ -6,6 +6,16 @@ step**.
 
 ---
 
+## 2026-09-03 — Hotfix: budget line rendered a DeltaGenerator (magic)
+
+**What we did**
+- The over/under-budget line was written as a ternary **expression statement**;
+  Streamlit "magic" auto-`st.write()`s a bare expression, so it rendered the
+  returned `DeltaGenerator` repr on any receipt **with a budget cap**. Made it a
+  plain `if/else`.
+- Verified with AppTest asserting **no `DeltaGenerator` text leaks** on both
+  over- and under-budget receipts.
+
 ## 2026-09-03 — Round trip requires departure; Receipts editable per trip
 
 **What we did**
