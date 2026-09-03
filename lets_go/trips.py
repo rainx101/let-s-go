@@ -47,6 +47,16 @@ def validate_new_trip(name: str, legs: list[DraftLeg]) -> list[str]:
     return errors
 
 
+def validate_new_item(name: str, cost: float) -> list[str]:
+    """Return a list of problems with a draft item. Empty list means valid."""
+    errors: list[str] = []
+    if not name.strip():
+        errors.append("Item needs a name.")
+    if cost < 0:
+        errors.append("Item cost can't be negative.")
+    return errors
+
+
 # --- DB access --------------------------------------------------------------
 
 
@@ -106,3 +116,45 @@ def list_trips() -> list[dict]:
     for trip in trips:
         trip["legs"] = by_trip.get(trip["id"], [])
     return trips
+
+
+def add_item(
+    trip_id: int,
+    leg_id: int | None,
+    category: str,
+    name: str,
+    cost: Decimal,
+    day: int | None,
+) -> int:
+    """Insert one planned item (cost in the trip's home currency); return its id."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO items (trip_id, leg_id, category, name, cost, day) "
+            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            (trip_id, leg_id, category, name.strip(), cost, day),
+        )
+        row = cur.fetchone()
+        assert row is not None  # INSERT ... RETURNING always yields a row
+        return row[0]
+
+
+def list_items(trip_id: int) -> list[dict]:
+    """All items for a trip, ordered by leg, then day, then position."""
+    conn = get_connection()
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.day, i.position "
+            "FROM items i LEFT JOIN legs l ON l.id = i.leg_id "
+            "WHERE i.trip_id = %s "
+            "ORDER BY l.position NULLS FIRST, i.day NULLS FIRST, i.position, i.id",
+            (trip_id,),
+        )
+        return cur.fetchall()
+
+
+def delete_item(item_id: int) -> None:
+    """Remove one item."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM items WHERE id = %s", (item_id,))
