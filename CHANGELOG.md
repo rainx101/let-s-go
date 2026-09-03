@@ -6,6 +6,23 @@ step**.
 
 ---
 
+## 2026-09-03 — Phase 2 Slice 1: draft / final trip status
+
+**What we did**
+- **`trips.status`** column (draft/final; idempotent migration — existing trips
+  default to `final`). New skeleton saves now create a **draft**.
+- **`set_trip_status`** data helper; `list_trips` returns status.
+- **Receipts split:** **Drafts (in progress)** — each with a **✅ Finalize** —
+  and **Finalized** — each with **↩ Reopen as draft**. Both stay fully editable.
+- Skeleton save message now says "saved as draft — open it in Receipts to add
+  items and finalize."
+- Verified: ruff/ty/pytest green; live round-trip (status persist + toggle) and
+  AppTest (both Receipts sections render, no exception).
+
+**Next step**
+- Phase 2 Slice 2: the waterfall budget header on the draft (activities →
+  flight+hotel → restaurants).
+
 ## 2026-09-03 — Budget required; empty budget fields with example placeholder
 
 **What we did**
