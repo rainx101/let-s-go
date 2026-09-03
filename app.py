@@ -6,8 +6,18 @@ from decimal import Decimal
 import streamlit as st
 
 from lets_go.auth import require_login
+from lets_go.budget import budget_progress, is_over_budget, remaining_budget, total_spent
 from lets_go.db import health_check, init_db
-from lets_go.trips import DraftLeg, create_trip, list_trips, validate_new_trip
+from lets_go.trips import (
+    DraftLeg,
+    add_item,
+    create_trip,
+    delete_item,
+    list_items,
+    list_trips,
+    validate_new_item,
+    validate_new_trip,
+)
 
 st.set_page_config(page_title="let's go", page_icon="🧳", layout="centered")
 
@@ -22,8 +32,12 @@ with st.sidebar:
         st.success("Neon connected", icon="✅")
 
 CURRENCIES = ["USD", "EUR", "JPY", "GBP", "AUD", "CAD", "TWD", "KRW", "THB"]
+ITEM_CATEGORIES = ["flight", "hotel", "spot", "restaurant"]
+CATEGORY_ICON = {"flight": "✈️", "hotel": "🏨", "spot": "📍", "restaurant": "🍽️"}
 
 plan_tab, receipts_tab, restaurants_tab = st.tabs(["Plan", "Receipts", "Restaurants by city"])
+
+trips = list_trips()
 
 
 def _range_bounds(legs: list[dict]) -> tuple[object, object]:
@@ -46,12 +60,9 @@ with plan_tab:
     with st.form("add_city", clear_on_submit=True):
         city = st.text_input("City")
         country = st.text_input("Country (optional)")
-        set_dates = st.checkbox("Set dates")
-        start = end = None
-        if set_dates:
-            dc1, dc2 = st.columns(2)
-            start = dc1.date_input("Start")
-            end = dc2.date_input("End")
+        dc1, dc2 = st.columns(2)
+        start = dc1.date_input("Start date (optional)", value=None)
+        end = dc2.date_input("End date (optional)", value=None)
         fc, hc = st.columns(2)
         need_flight = fc.checkbox("Need flight")
         need_hotel = hc.checkbox("Need hotel")
@@ -83,9 +94,81 @@ with plan_tab:
             st.session_state.draft_legs = []
             st.success(f"Saved trip #{trip_id}. See the Receipts tab.")
 
+    st.divider()
+    st.subheader("Add items to a trip")
+    if not trips:
+        st.caption("Save a trip above first, then add flights, hotels, spots and meals.")
+    else:
+        labels = {t["id"]: t["name"] for t in trips}
+        trip_id = st.selectbox(
+            "Trip",
+            options=[t["id"] for t in trips],
+            format_func=lambda tid: labels[tid],
+            key="edit_trip",
+        )
+        trip = next(t for t in trips if t["id"] == trip_id)
+        legs = trip["legs"]
+        currency = trip["home_currency"]
+        items = list_items(trip_id)
+
+        spent = total_spent([float(it["cost"]) for it in items])
+        if trip["budget_cap"] is not None:
+            cap = float(trip["budget_cap"])
+            st.progress(budget_progress(cap, spent))
+            left = remaining_budget(cap, [spent])
+            msg = f"Spent {spent:,.2f} / {cap:,.2f} {currency} · {left:,.2f} left"
+            if is_over_budget(cap, [spent]):
+                st.error(f"{msg} — over budget")
+            else:
+                st.caption(msg)
+        else:
+            st.caption(f"Spent {spent:,.2f} {currency} · no budget cap set")
+
+        # leg picker options: each leg, plus "General" (no city)
+        leg_choices: list[int | None] = [leg["id"] for leg in legs] + [None]
+        leg_label = {leg["id"]: leg["city"] for leg in legs}
+
+        with st.form("add_item", clear_on_submit=True):
+            ic1, ic2 = st.columns(2)
+            category = ic1.selectbox("Type", ITEM_CATEGORIES)
+            item_cost = ic2.number_input(f"Cost ({currency})", min_value=0.0, step=10.0)
+            item_name = st.text_input("Name")
+            lc1, lc2 = st.columns(2)
+            item_leg = lc1.selectbox(
+                "City",
+                leg_choices,
+                format_func=lambda lid: leg_label.get(lid, "General"),
+            )
+            item_day = lc2.number_input("Day (optional)", min_value=0, step=1)
+            if st.form_submit_button("Add item"):
+                item_errors = validate_new_item(item_name, item_cost)
+                if item_errors:
+                    for err in item_errors:
+                        st.error(err)
+                else:
+                    add_item(
+                        trip_id,
+                        item_leg,
+                        category,
+                        item_name,
+                        Decimal(str(item_cost)),
+                        item_day or None,
+                    )
+                    st.rerun()
+
+        for it in items:
+            row, remove = st.columns([6, 1])
+            icon = CATEGORY_ICON.get(it["category"], "")
+            where = leg_label.get(it["leg_id"], "General")
+            day = f" · day {it['day']}" if it["day"] else ""
+            est = " (est.)" if it["category"] == "restaurant" else ""
+            row.write(f"{icon} **{it['name']}** — {it['cost']} {currency}{est} · {where}{day}")
+            if remove.button("✕", key=f"rm_item_{it['id']}"):
+                delete_item(it["id"])
+                st.rerun()
+
 with receipts_tab:
     st.header("Receipts")
-    trips = list_trips()
     if not trips:
         st.info("No trips yet. Create one in the Plan tab.")
     for trip in trips:

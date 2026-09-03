@@ -29,23 +29,23 @@ Goal: an empty but deployed, logged-in Streamlit app connected to Neon.
 
 Goal: build, edit, and save a trip with a working budget — no external APIs yet.
 
-- [ ] **DB schema:** `trips`, `legs` (city + date range), `items`
+- [x] **DB schema:** `trips`, `legs` (city + date range), `items`
       (flight/hotel/spot/restaurant + cost + day + order), plus fields for
       currency and status. (Draft in PRD §7 — finalize here.)
-- [ ] **Create trip:** name, one or more **cities/legs** with date ranges,
+- [x] **Create trip:** name, one or more **cities/legs** with date ranges,
       **home currency**, single **budget cap** (PRD §6).
-- [ ] Toggle per leg: **need flight? need hotel?**
-- [ ] **Add item manually** (flight/hotel/spot/restaurant) with a typed cost;
-      assign to a **day**.
+- [x] Toggle per leg: **need flight? need hotel?**
+- [x] **Add item manually** (flight/hotel/spot/restaurant) with a typed cost;
+      assign to a **day** (and city/leg).
 - [ ] **Currency:** every cost stored + shown converted to the **home currency**
       (static/placeholder rate for now; live source in Phase 2).
-- [ ] **Running budget** vs cap, with a visible total/remaining indicator;
+- [x] **Running budget** vs cap, with a visible total/remaining indicator;
       restaurants counted as **estimates**.
 - [ ] **Plan tab editing:** move item **up/down**, **change day**, and **edit
       price inline** (buttons/dropdowns — not drag-drop, PRD §9a/decisions).
-- [ ] **Save trip** into the collection.
-- [ ] **Receipts tab:** list saved trips (date range + place); **click opens the
-      full plan**.
+- [x] **Save trip** into the collection.
+- [x] **Receipts tab:** list saved trips (date range + place); **click opens the
+      full plan** _(shows legs; item-level detail arrives with Add-item)_.
 - [ ] **Export to file** (backup of trips + items) — PRD §5.
 
 ## Phase 2 — Auto-search & maps (the risky, defensive layer)
@@ -96,4 +96,4 @@ Goal: the "remember what I liked" value.
 - [ ] Free source for **per-city average meal cost**.
 - [ ] Free source for **currency conversion** rates.
 
-_Last updated: 2026-08-26_
+_Last updated: 2026-09-03_

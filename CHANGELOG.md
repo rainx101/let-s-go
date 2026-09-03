@@ -6,6 +6,25 @@ step**.
 
 ---
 
+## 2026-09-03 — Phase 1 slice 2: priced items + budget bar
+
+**What we did**
+- **Data layer** (`lets_go/trips.py`): `add_item`, `list_items`, `delete_item`
+  (parameterized; items ordered by leg → day → position) plus a pure
+  `validate_new_item` (name required, non-negative cost).
+- **Budget math** (`lets_go/budget.py`): added `budget_progress` — cap fraction
+  clamped to 0–1 for the progress bar (full when spent with no cap set).
+- **Plan tab:** "Add items to a trip" — pick a saved trip, see a **live budget
+  bar** (spent / cap · remaining, red when over), add items (type · name · cost ·
+  city · day), and remove them. Restaurant costs marked "(est.)".
+- **Tests:** 7 new unit tests for the pure helpers (21 total).
+- Verified: ruff/ty/pytest green; live Neon round-trip (create trip → add 3 items
+  → list → budget → delete → cascade cleanup) works; app loads clean (HTTP 200).
+
+**Next step**
+- Phase 1 slice 3: Plan-tab item editing (move up/down, change day, edit price
+  inline) and Export to file. Currency conversion arrives with Phase 2.
+
 ## 2026-09-01 — Phase 1 slice 1: create & list trips
 
 **What we did**

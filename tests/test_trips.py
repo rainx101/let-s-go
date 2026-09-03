@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from lets_go.trips import DraftLeg, trip_date_range, validate_new_trip
+from lets_go.trips import DraftLeg, trip_date_range, validate_new_item, validate_new_trip
 
 
 def test_date_range_spans_earliest_start_to_latest_end():
@@ -44,3 +44,16 @@ def test_validate_flags_end_before_start():
     legs = [DraftLeg(city="Tokyo", start_date=date(2026, 5, 5), end_date=date(2026, 5, 1))]
     errors = validate_new_trip("Japan", legs)
     assert any("end date is before start date" in e for e in errors)
+
+
+def test_validate_item_ok():
+    assert validate_new_item("Sushi dinner", 40.0) == []
+
+
+def test_validate_item_requires_name():
+    assert "Item needs a name." in validate_new_item("  ", 40.0)
+
+
+def test_validate_item_rejects_negative_cost():
+    errors = validate_new_item("Flight", -10.0)
+    assert any("cost can't be negative" in e for e in errors)
