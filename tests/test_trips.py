@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from lets_go.trips import (
     DraftLeg,
+    dates_overlap,
     destination_budgets,
     normalize_place,
     trip_date_range,
@@ -104,6 +105,33 @@ def test_destination_budgets_explicit_cap_then_split_remainder():
 def test_destination_budgets_no_overall_cap_returns_leg_caps():
     legs = [_leg(city="Tokyo", budget_cap=Decimal("100")), _leg(city="Osaka")]
     assert destination_budgets(None, legs) == [Decimal("100"), None]
+
+
+def test_dates_overlap_true_for_intersecting_ranges():
+    a = _leg(city="A", start_date=date(2026, 5, 1), end_date=date(2026, 5, 5))
+    b = _leg(city="B", start_date=date(2026, 5, 4), end_date=date(2026, 5, 7))
+    assert dates_overlap(a, b) is True
+
+
+def test_dates_overlap_false_when_sharing_only_a_boundary_day():
+    a = _leg(city="A", start_date=date(2026, 5, 1), end_date=date(2026, 5, 4))
+    b = _leg(city="B", start_date=date(2026, 5, 4), end_date=date(2026, 5, 7))
+    assert dates_overlap(a, b) is False
+
+
+def test_dates_overlap_false_for_disjoint_ranges():
+    a = _leg(city="A", start_date=date(2026, 5, 1), end_date=date(2026, 5, 3))
+    b = _leg(city="B", start_date=date(2026, 5, 5), end_date=date(2026, 5, 7))
+    assert dates_overlap(a, b) is False
+
+
+def test_validate_flags_overlapping_destinations():
+    legs = [
+        _leg(city="Tokyo", start_date=date(2026, 5, 1), end_date=date(2026, 5, 5)),
+        _leg(city="Osaka", start_date=date(2026, 5, 4), end_date=date(2026, 5, 7)),
+    ]
+    errors = validate_new_trip("Japan", legs)
+    assert any("overlap" in e for e in errors)
 
 
 def test_validate_requires_name():

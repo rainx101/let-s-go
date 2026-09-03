@@ -14,6 +14,7 @@ from lets_go.trips import (
     DraftLeg,
     add_item,
     create_trip,
+    dates_overlap,
     delete_item,
     destination_budgets,
     list_items,
@@ -118,10 +119,13 @@ with plan_tab:
             budget_cap=Decimal(str(st.session_state.d_cap)) if st.session_state.d_cap else None,
         )
         problems = validate_new_trip("_", [leg])  # name placeholder; check this leg only
+        idx = st.session_state.editing_index
+        others = [other for k, other in enumerate(draft_legs) if k != idx]
+        if any(dates_overlap(leg, other) for other in others):
+            problems.append("Dates overlap with another destination.")
         if problems:
             st.session_state.dest_errors = problems
             return
-        idx = st.session_state.editing_index
         if idx is not None and idx < len(draft_legs):
             draft_legs[idx] = leg
         else:
@@ -135,18 +139,53 @@ with plan_tab:
         if errors:
             st.session_state.save_errors = errors
             return
-        trip_id = create_trip(
-            st.session_state.trip_name, st.session_state.trip_currency, cap, draft_legs
-        )
+        name = st.session_state.trip_name.strip()
+        create_trip(name, st.session_state.trip_currency, cap, draft_legs)
         st.session_state.save_errors = []
-        st.session_state.save_success = f"Saved trip #{trip_id}. See the Receipts tab."
+        number = len(list_trips())  # human-friendly count, not the raw DB id
+        st.session_state.save_success = f"Saved '{name}' — trip #{number}. See the Receipts tab."
         st.session_state.draft_legs = []
         _reset_destination_fields()
 
+    def _destination_form(editing: bool) -> None:
+        with st.container(border=True):
+            st.markdown("**Edit destination**" if editing else "**Add destination**")
+            oc1, oc2 = st.columns(2)
+            oc1.text_input("From city (optional)", key="d_from_city")
+            oc2.text_input("From country (optional)", key="d_from_country")
+            tc1, tc2 = st.columns(2)
+            tc1.text_input("To city", key="d_city")
+            tc2.text_input("Country (optional)", key="d_country")
+            dc1, dc2 = st.columns(2)
+            dc1.date_input("Start date", key="d_start")
+            dc2.date_input("End date", key="d_end")
+            st.number_input(
+                "Budget cap for this stop (optional)", min_value=0.0, step=100.0, key="d_cap"
+            )
+            fc, hc = st.columns(2)
+            fc.checkbox("Need flight", key="d_flight")
+            hc.checkbox("Need hotel", key="d_hotel")
+            bc1, bc2 = st.columns([1, 1])
+            bc1.button(
+                "Save changes" if editing else "Add destination",
+                type="primary" if editing else "secondary",
+                on_click=_submit_destination,
+            )
+            bc2.button("Cancel", on_click=_reset_destination_fields)
+            for problem in st.session_state.dest_errors:
+                st.warning(problem)
+
     overall_cap = Decimal(str(budget_cap)) if budget_cap else None
     leg_budgets = destination_budgets(overall_cap, draft_legs)
+    if st.session_state.editing_index is not None and st.session_state.editing_index >= len(
+        draft_legs
+    ):
+        st.session_state.editing_index = None
 
     for i, leg in enumerate(draft_legs):
+        if st.session_state.editing_index == i:
+            _destination_form(editing=True)  # edit this card in place
+            continue
         row, edit, remove = st.columns([6, 1, 1])
         flags = ("✈️" if leg.need_flight else "") + ("🏨" if leg.need_hotel else "")
         origin = f"{leg.from_city} → " if leg.from_city else ""
@@ -168,32 +207,8 @@ with plan_tab:
             _reset_destination_fields()
             st.rerun()
 
-    editing = st.session_state.editing_index is not None
-    st.markdown("**Edit destination**" if editing else "**Add destination**")
-    oc1, oc2 = st.columns(2)
-    oc1.text_input("From city (optional)", key="d_from_city")
-    oc2.text_input("From country (optional)", key="d_from_country")
-    tc1, tc2 = st.columns(2)
-    tc1.text_input("To city", key="d_city")
-    tc2.text_input("Country (optional)", key="d_country")
-    dc1, dc2 = st.columns(2)
-    dc1.date_input("Start date", key="d_start")
-    dc2.date_input("End date", key="d_end")
-    st.number_input("Budget cap for this stop (optional)", min_value=0.0, step=100.0, key="d_cap")
-    fc, hc = st.columns(2)
-    fc.checkbox("Need flight", key="d_flight")
-    hc.checkbox("Need hotel", key="d_hotel")
-
-    bc1, bc2 = st.columns([1, 1])
-    bc1.button(
-        "Save changes" if editing else "Add destination",
-        type="secondary",
-        on_click=_submit_destination,
-    )
-    if editing:
-        bc2.button("Cancel edit", on_click=_reset_destination_fields)
-    for problem in st.session_state.dest_errors:
-        st.warning(problem)
+    if st.session_state.editing_index is None:
+        _destination_form(editing=False)  # add a new destination at the bottom
 
     st.button("Save trip", type="primary", on_click=_save_trip)
     for err in st.session_state.save_errors:

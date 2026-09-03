@@ -6,6 +6,28 @@ step**.
 
 ---
 
+## 2026-09-03 — In-place editing, non-overlapping dates, friendlier trip number
+
+**What we did**
+- **Edit in place:** clicking ✏️ now turns that destination card into the edit
+  form right where it sits (summary hidden, above the next stop), so it's clear
+  which card you're editing. Adding shows the form at the bottom.
+- **Cancel on both:** the form has a **Cancel** whether you're editing (revert)
+  or adding (give up and clear the in-progress fields).
+- **No overlapping dates:** destinations can't have overlapping date ranges —
+  caught immediately on add/edit and re-checked across all legs at save. Sharing
+  a single boundary day (check-out = check-in) is allowed. `dates_overlap` is a
+  pure, tested helper.
+- **Friendlier trip number:** the save message shows the trip name and a
+  sequential number starting at 1 (count of trips), not the raw `SERIAL` id
+  (which climbs and gaps after deletes).
+- **Tests:** 4 new (48 total).
+- Verified: ruff/ty/pytest green; app loads clean.
+
+**Next step**
+- Rest of Phase 1: inline item editing (move up/down, change day, edit price) and
+  export to file. Then the Phase 2 guided flow (see design notes).
+
 ## 2026-09-03 — Builder fixes + per-card local-currency budgets
 
 **What we did**
