@@ -392,6 +392,8 @@ def _render_skeleton() -> None:
         st.session_state.draft_legs = []
         st.session_state.adding = False
         st.session_state.editing_index = None
+        st.session_state.pop("trip_name", None)  # reset the builder for the next trip
+        st.session_state.pop("trip_budget", None)
         st.session_state.active_trip_id = tid  # drop into the guided steps
         st.session_state.plan_step = STEPS[0]
         st.session_state.plan_msg = f"Draft '{name}' created — plan it step by step."
@@ -467,7 +469,7 @@ def _render_skeleton() -> None:
     if st.session_state.adding:
         with st.container(border=True):
             st.markdown("**Add destination**")
-            _card_form("a_", "Add destination", _submit_add, _cancel_add, "add_errors")
+            _card_form("a_", "Save destination", _submit_add, _cancel_add, "add_errors")
     else:
         st.button("➕ Add destination", on_click=_open_add)
 

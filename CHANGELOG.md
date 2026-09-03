@@ -19,6 +19,9 @@ step**.
   finalized receipt.
 - **Review → "Generate receipt"** finalizes the draft (`status = final`) and
   exits planning.
+- The add-destination form's submit button reads **"Save destination"** (clearer
+  than a second "Add destination"), and the builder **resets empty** (name +
+  budget cleared) after a draft is saved.
 - **Receipts:** **Drafts** show legs + budget + **Resume planning** / **Finalize**
   (no add form here); **Finalized** are the full editable receipt.
 - Verified with **AppTest**: skeleton renders; steps render with the activity
