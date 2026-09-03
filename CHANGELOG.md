@@ -6,6 +6,31 @@ step**.
 
 ---
 
+## 2026-09-03 — Per-card round trip + builder rework; items moved to Receipts
+
+**What we did**
+- **Round trip is now per destination card** (not per trip): each card has a
+  toggle, shown Expedia-style as **A ⇄ B** (round trip) vs **A → B** (one-way).
+  Moved from `trips.trip_type` to `legs.round_trip` (idempotent migration).
+- **Autofill the next card's From** from where the previous leg leaves you —
+  the origin if it was round trip, else the destination (`leg_endpoint`, tested);
+  dates autofill to continue after the previous stop.
+- **Independent add/edit state:** you can edit an existing card while a new card
+  is still being filled — neither clobbers the other (separate `a_*` / `e_*`
+  field buffers).
+- **Cancel now dismisses the add card** (it disappears, leaving the saved cards);
+  "➕ Add destination" reopens it.
+- **Fuller card summary:** From→To with ⇄/→, dates, round-trip/one-way,
+  flight/hotel needed, and budget (cap or local-currency share).
+- **"Add items" moved out of the skeleton** into the **Receipts** tab — pick a
+  trip → see its legs, budget bar, and add/edit/remove items there.
+- **Tests:** 2 new for `leg_endpoint` (52 total).
+- Verified: ruff/ty/pytest green; live Neon round-trip (round_trip migrate/read,
+  endpoint); app loads clean.
+
+**Next step**
+- Phase 2 guided flow proper (steps + waterfall budget header + draft/final).
+
 ## 2026-09-03 — Guided-flow re-plan + Phase 1: trip type, item editing, export
 
 **What we did**
