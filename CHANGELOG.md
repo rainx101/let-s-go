@@ -6,6 +6,14 @@ step**.
 
 ---
 
+## 2026-09-03 — "Start planning" label + delete a trip
+
+- The skeleton's primary button now reads **"Start planning"** (it saves the
+  draft and drops into the guided steps) — clearer than "Save as draft".
+- **Delete a trip** from Receipts (drafts and finalized): a **🗑 Delete trip**
+  control with a confirm step; `delete_trip` removes the trip and cascades to its
+  legs + items. Deleting the trip you're currently planning also exits planning.
+
 ## 2026-09-03 — Fix: new draft now opens in the steps (not just Receipts)
 
 **What we did**

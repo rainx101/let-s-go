@@ -15,6 +15,7 @@ from lets_go.trips import (
     create_trip,
     dates_overlap,
     delete_item,
+    delete_trip,
     destination_budgets,
     export_json,
     leg_endpoint,
@@ -205,6 +206,16 @@ def _render_receipt(trip: dict) -> None:
     spent = total_spent([float(_home_amount(it, home)) for it in list_items(trip["id"])])
     _budget_bar(trip, spent)
     _item_manager(trip, ALL_CATEGORIES, show_add=True, tag="rcpt")
+
+
+def _delete_trip_control(trip: dict) -> None:
+    with st.popover("🗑 Delete trip"):
+        st.write(f"Permanently delete **{trip['name']}** and everything in it?")
+        if st.button("Yes, delete", key=f"deltrip_{trip['id']}"):
+            if st.session_state.get("active_trip_id") == trip["id"]:
+                st.session_state.active_trip_id = None
+            delete_trip(trip["id"])
+            st.rerun()
 
 
 # --- guided planning steps for a draft ---------------------------------------
@@ -473,7 +484,7 @@ def _render_skeleton() -> None:
     else:
         st.button("➕ Add destination", on_click=_open_add)
 
-    st.button("Save as draft", type="primary", on_click=_save_trip)
+    st.button("Start planning", type="primary", on_click=_save_trip)
     for err in st.session_state.save_errors:
         st.error(err)
 
@@ -532,6 +543,7 @@ with receipts_tab:
                     if rc2.button("✅ Finalize", key=f"fin_{trip['id']}"):
                         set_trip_status(trip["id"], "final")
                         st.rerun()
+                    _delete_trip_control(trip)
                     st.caption("Add and reorder items in the Plan tab's steps (Resume planning).")
 
         if finals:
@@ -542,9 +554,12 @@ with receipts_tab:
                 start, end = _range_bounds(legs)
                 span = f"{start} – {end}" if start else "dates TBD"
                 with st.expander(f"{trip['name']} · {cities} · {span}"):
-                    if st.button("↩ Reopen as draft", key=f"reopen_{trip['id']}"):
+                    rc1, rc2 = st.columns(2)
+                    if rc1.button("↩ Reopen as draft", key=f"reopen_{trip['id']}"):
                         set_trip_status(trip["id"], "draft")
                         st.rerun()
+                    with rc2:
+                        _delete_trip_control(trip)
                     _render_receipt(trip)
 
 with restaurants_tab:
