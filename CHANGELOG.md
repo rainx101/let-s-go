@@ -6,6 +6,27 @@ step**.
 
 ---
 
+## 2026-09-03 — Phase 2 Slice 2: guided step frame; items moved into steps
+
+**What we did**
+- **Plan tab now has two modes:** the **skeleton builder** (new trip) and, once
+  you **Save as draft**, the **guided steps** for that draft —
+  **Activities → Flight & hotel → Restaurants → Review**, with a total-spent
+  header (full waterfall header is Slice 3).
+- **Item-adding moved out of Receipts into the steps** — each step adds/edits
+  items for its own category (Activities = spot, etc.). Reusable
+  `_item_manager(trip, categories, show_add, tag)` shared by the steps and the
+  finalized receipt.
+- **Review → "Generate receipt"** finalizes the draft (`status = final`) and
+  exits planning.
+- **Receipts:** **Drafts** show legs + budget + **Resume planning** / **Finalize**
+  (no add form here); **Finalized** are the full editable receipt.
+- Verified with **AppTest**: skeleton renders; steps render with the activity
+  shown; Generate receipt finalizes and clears the active draft — no exceptions.
+
+**Next step**
+- Slice 3: the **waterfall budget header** (activities → flight+hotel → restaurants).
+
 ## 2026-09-03 — Phase 2 Slice 1: draft / final trip status
 
 **What we did**
