@@ -6,6 +6,17 @@ step**.
 
 ---
 
+## 2026-09-03 — Budget required; empty budget fields with example placeholder
+
+**What we did**
+- **Overall trip budget is now required** to save a trip ("Set a budget cap for
+  the trip.").
+- **Budget fields start empty** (`value=None`) with an **example placeholder**
+  ("e.g. 2000" / "e.g. 500") — no prefilled `0.00` to delete before typing.
+  Applied to the trip cap and per-stop cap.
+- Verified with AppTest: both budget fields default empty and render without
+  error.
+
 ## 2026-09-03 — Hotfix: budget line rendered a DeltaGenerator (magic)
 
 **What we did**

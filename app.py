@@ -68,7 +68,14 @@ with plan_tab:
     st.text_input("Trip name", key="trip_name")
     c1, c2 = st.columns(2)
     home_currency = c1.selectbox("Home currency", CURRENCIES, key="trip_currency")
-    budget_cap = c2.number_input("Budget cap", min_value=0.0, step=100.0, key="trip_budget")
+    budget_cap = c2.number_input(
+        "Budget cap",
+        min_value=0.0,
+        step=100.0,
+        value=None,
+        placeholder="e.g. 2000",
+        key="trip_budget",
+    )
 
     st.subheader("Destinations")
     draft_legs = st.session_state.draft_legs
@@ -84,7 +91,7 @@ with plan_tab:
             f"{prefix}country": "",
             f"{prefix}start": today,
             f"{prefix}end": today + timedelta(days=1),
-            f"{prefix}cap": 0.0,
+            f"{prefix}cap": None,
             f"{prefix}flight": False,
             f"{prefix}hotel": False,
             f"{prefix}round": False,
@@ -102,7 +109,7 @@ with plan_tab:
         g[f"{prefix}country"] = leg.country
         g[f"{prefix}start"] = leg.start_date or today
         g[f"{prefix}end"] = leg.end_date or today + timedelta(days=1)
-        g[f"{prefix}cap"] = float(leg.budget_cap) if leg.budget_cap else 0.0
+        g[f"{prefix}cap"] = float(leg.budget_cap) if leg.budget_cap else None
         g[f"{prefix}flight"] = leg.need_flight
         g[f"{prefix}hotel"] = leg.need_hotel
         g[f"{prefix}round"] = leg.round_trip
@@ -188,6 +195,8 @@ with plan_tab:
         cap = Decimal(str(st.session_state.trip_budget)) if st.session_state.trip_budget else None
         errors = validate_new_trip(st.session_state.trip_name, draft_legs)
         errors += validate_budget_caps(cap, draft_legs)
+        if cap is None:
+            errors.append("Set a budget cap for the trip.")
         if errors:
             st.session_state.save_errors = errors
             return
@@ -212,7 +221,11 @@ with plan_tab:
         dc1.date_input("Start date", key=f"{prefix}start")
         dc2.date_input("End date", key=f"{prefix}end")
         st.number_input(
-            "Budget cap for this stop (optional)", min_value=0.0, step=100.0, key=f"{prefix}cap"
+            "Budget cap for this stop (optional)",
+            min_value=0.0,
+            step=100.0,
+            placeholder="e.g. 500",
+            key=f"{prefix}cap",
         )
         fc, hc = st.columns(2)
         fc.checkbox("Need flight", key=f"{prefix}flight")
