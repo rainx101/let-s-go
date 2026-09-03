@@ -8,13 +8,14 @@ import streamlit as st
 
 from lets_go.auth import require_login
 from lets_go.budget import budget_progress, is_over_budget, remaining_budget, total_spent
-from lets_go.currency import convert
+from lets_go.currency import convert, currency_for_country
 from lets_go.db import health_check, init_db
 from lets_go.trips import (
     DraftLeg,
     add_item,
     create_trip,
     delete_item,
+    destination_budgets,
     list_items,
     list_trips,
     normalize_place,
@@ -55,14 +56,95 @@ with plan_tab:
 
     st.session_state.setdefault("draft_legs", [])
 
-    name = st.text_input("Trip name", key="trip_name")
+    st.text_input("Trip name", key="trip_name")
     c1, c2 = st.columns(2)
     home_currency = c1.selectbox("Home currency", CURRENCIES, key="trip_currency")
     budget_cap = c2.number_input("Budget cap", min_value=0.0, step=100.0, key="trip_budget")
 
     st.subheader("Destinations")
     st.session_state.setdefault("editing_index", None)
+    st.session_state.setdefault("dest_errors", [])
+    st.session_state.setdefault("save_errors", [])
+    st.session_state.setdefault("save_success", "")
     draft_legs = st.session_state.draft_legs
+    today = date.today()
+
+    # Field state lives in session_state (keyed widgets, not a form) so Enter
+    # doesn't auto-submit and Edit can reliably repopulate the fields.
+    field_defaults = {
+        "d_from_city": "",
+        "d_from_country": "",
+        "d_city": "",
+        "d_country": "",
+        "d_start": today,
+        "d_end": today + timedelta(days=1),
+        "d_cap": 0.0,
+        "d_flight": False,
+        "d_hotel": False,
+    }
+    for _k, _v in field_defaults.items():
+        st.session_state.setdefault(_k, _v)
+
+    def _reset_destination_fields() -> None:
+        st.session_state.editing_index = None
+        st.session_state.dest_errors = []
+        for k, v in field_defaults.items():
+            st.session_state[k] = v
+
+    def _load_destination(i: int) -> None:
+        leg = draft_legs[i]
+        st.session_state.editing_index = i
+        st.session_state.dest_errors = []
+        st.session_state.d_from_city = leg.from_city
+        st.session_state.d_from_country = leg.from_country
+        st.session_state.d_city = leg.city
+        st.session_state.d_country = leg.country
+        st.session_state.d_start = leg.start_date or today
+        st.session_state.d_end = leg.end_date or today + timedelta(days=1)
+        st.session_state.d_cap = float(leg.budget_cap) if leg.budget_cap else 0.0
+        st.session_state.d_flight = leg.need_flight
+        st.session_state.d_hotel = leg.need_hotel
+
+    def _submit_destination() -> None:
+        leg = DraftLeg(
+            city=normalize_place(st.session_state.d_city),
+            country=st.session_state.d_country.strip(),
+            from_city=normalize_place(st.session_state.d_from_city),
+            from_country=st.session_state.d_from_country.strip(),
+            start_date=st.session_state.d_start,
+            end_date=st.session_state.d_end,
+            need_flight=st.session_state.d_flight,
+            need_hotel=st.session_state.d_hotel,
+            budget_cap=Decimal(str(st.session_state.d_cap)) if st.session_state.d_cap else None,
+        )
+        problems = validate_new_trip("_", [leg])  # name placeholder; check this leg only
+        if problems:
+            st.session_state.dest_errors = problems
+            return
+        idx = st.session_state.editing_index
+        if idx is not None and idx < len(draft_legs):
+            draft_legs[idx] = leg
+        else:
+            draft_legs.append(leg)
+        _reset_destination_fields()
+
+    def _save_trip() -> None:
+        cap = Decimal(str(st.session_state.trip_budget)) if st.session_state.trip_budget else None
+        errors = validate_new_trip(st.session_state.trip_name, draft_legs)
+        errors += validate_budget_caps(cap, draft_legs)
+        if errors:
+            st.session_state.save_errors = errors
+            return
+        trip_id = create_trip(
+            st.session_state.trip_name, st.session_state.trip_currency, cap, draft_legs
+        )
+        st.session_state.save_errors = []
+        st.session_state.save_success = f"Saved trip #{trip_id}. See the Receipts tab."
+        st.session_state.draft_legs = []
+        _reset_destination_fields()
+
+    overall_cap = Decimal(str(budget_cap)) if budget_cap else None
+    leg_budgets = destination_budgets(overall_cap, draft_legs)
 
     for i, leg in enumerate(draft_legs):
         row, edit, remove = st.columns([6, 1, 1])
@@ -71,81 +153,54 @@ with plan_tab:
         place = f"{origin}**{leg.city}**" + (f", {leg.country}" if leg.country else "")
         cap = f" · cap {leg.budget_cap}" if leg.budget_cap is not None else ""
         row.write(f"{place} · {leg.start_date} → {leg.end_date}{cap} {flags}")
-        if edit.button("✏️", key=f"ed_{i}"):
-            st.session_state.editing_index = i
-            st.rerun()
+        budget = leg_budgets[i]
+        if budget is not None:
+            local_ccy = currency_for_country(leg.country, home_currency)
+            share = "" if leg.budget_cap is not None else " share of budget"
+            if local_ccy != home_currency:
+                local = convert(budget, home_currency, local_ccy)
+                row.caption(f"≈ {local:,.0f} {local_ccy} · {budget:,.0f} {home_currency}{share}")
+            else:
+                row.caption(f"{budget:,.0f} {home_currency}{share}")
+        edit.button("✏️", key=f"ed_{i}", on_click=_load_destination, args=(i,))
         if remove.button("✕", key=f"rm_{i}"):
             draft_legs.pop(i)
-            st.session_state.editing_index = None
+            _reset_destination_fields()
             st.rerun()
 
-    idx = st.session_state.editing_index
-    ed = draft_legs[idx] if idx is not None and idx < len(draft_legs) else None
-    today = date.today()
+    editing = st.session_state.editing_index is not None
+    st.markdown("**Edit destination**" if editing else "**Add destination**")
+    oc1, oc2 = st.columns(2)
+    oc1.text_input("From city (optional)", key="d_from_city")
+    oc2.text_input("From country (optional)", key="d_from_country")
+    tc1, tc2 = st.columns(2)
+    tc1.text_input("To city", key="d_city")
+    tc2.text_input("Country (optional)", key="d_country")
+    dc1, dc2 = st.columns(2)
+    dc1.date_input("Start date", key="d_start")
+    dc2.date_input("End date", key="d_end")
+    st.number_input("Budget cap for this stop (optional)", min_value=0.0, step=100.0, key="d_cap")
+    fc, hc = st.columns(2)
+    fc.checkbox("Need flight", key="d_flight")
+    hc.checkbox("Need hotel", key="d_hotel")
 
-    if ed is not None:
-        st.info(f"Editing destination {idx + 1}: {ed.city or 'unnamed'}")
-        if st.button("Cancel edit"):
-            st.session_state.editing_index = None
-            st.rerun()
+    bc1, bc2 = st.columns([1, 1])
+    bc1.button(
+        "Save changes" if editing else "Add destination",
+        type="secondary",
+        on_click=_submit_destination,
+    )
+    if editing:
+        bc2.button("Cancel edit", on_click=_reset_destination_fields)
+    for problem in st.session_state.dest_errors:
+        st.warning(problem)
 
-    with st.form("add_city", clear_on_submit=True):
-        st.markdown("**Edit destination**" if ed else "**Add destination**")
-        oc1, oc2 = st.columns(2)
-        from_city = oc1.text_input("From city (optional)", value=ed.from_city if ed else "")
-        from_country = oc2.text_input(
-            "From country (optional)", value=ed.from_country if ed else ""
-        )
-        tc1, tc2 = st.columns(2)
-        city = tc1.text_input("To city", value=ed.city if ed else "")
-        country = tc2.text_input("Country (optional)", value=ed.country if ed else "")
-        dc1, dc2 = st.columns(2)
-        start = dc1.date_input("Start date", value=ed.start_date if ed else today)
-        end = dc2.date_input("End date", value=ed.end_date if ed else today + timedelta(days=1))
-        leg_cap = st.number_input(
-            "Budget cap for this stop (optional)",
-            min_value=0.0,
-            step=100.0,
-            value=float(ed.budget_cap) if ed and ed.budget_cap else 0.0,
-        )
-        fc, hc = st.columns(2)
-        need_flight = fc.checkbox("Need flight", value=ed.need_flight if ed else False)
-        need_hotel = hc.checkbox("Need hotel", value=ed.need_hotel if ed else False)
-        if st.form_submit_button("Save changes" if ed else "Add destination"):
-            leg = DraftLeg(
-                city=normalize_place(city),
-                country=country.strip(),
-                from_city=normalize_place(from_city),
-                from_country=from_country.strip(),
-                start_date=start,
-                end_date=end,
-                need_flight=need_flight,
-                need_hotel=need_hotel,
-                budget_cap=Decimal(str(leg_cap)) if leg_cap else None,
-            )
-            problems = validate_new_trip("_", [leg])  # name placeholder; check this leg only
-            if problems:
-                for p in problems:
-                    st.warning(p)
-            elif ed is not None:
-                draft_legs[idx] = leg
-                st.session_state.editing_index = None
-                st.rerun()
-            else:
-                draft_legs.append(leg)
-                st.rerun()
-
-    if st.button("Save trip", type="primary"):
-        cap = Decimal(str(budget_cap)) if budget_cap else None
-        errors = validate_new_trip(name, draft_legs) + validate_budget_caps(cap, draft_legs)
-        if errors:
-            for err in errors:
-                st.error(err)
-        else:
-            trip_id = create_trip(name, home_currency, cap, draft_legs)
-            st.session_state.draft_legs = []
-            st.session_state.editing_index = None
-            st.success(f"Saved trip #{trip_id}. See the Receipts tab.")
+    st.button("Save trip", type="primary", on_click=_save_trip)
+    for err in st.session_state.save_errors:
+        st.error(err)
+    if st.session_state.save_success:
+        st.success(st.session_state.save_success)
+        st.session_state.save_success = ""
 
     st.divider()
     st.subheader("Add items to a trip")
@@ -183,8 +238,31 @@ with plan_tab:
         # leg picker options: each leg, plus "General" (no city)
         leg_choices: list[int | None] = [leg["id"] for leg in legs] + [None]
         leg_label = {leg["id"]: leg["city"] for leg in legs}
+        leg_key = f"new_item_leg_{trip_id}"  # per-trip so switching trips can't mismatch options
+        st.session_state.setdefault("item_errors", [])
 
-        # Cost + currency live outside the form so the conversion previews as you type.
+        def _submit_item(tid: int, lkey: str) -> None:
+            name = st.session_state.new_item_name
+            cost = st.session_state.new_item_cost
+            errors = validate_new_item(name, cost)
+            if errors:
+                st.session_state.item_errors = errors
+                return
+            add_item(
+                tid,
+                st.session_state[lkey],
+                st.session_state.new_item_type,
+                name,
+                Decimal(str(cost)),
+                st.session_state.new_item_ccy,
+                int(st.session_state.new_item_day) or None,
+            )
+            st.session_state.item_errors = []
+            st.session_state.new_item_name = ""
+            st.session_state.new_item_cost = 0.0
+            st.session_state.new_item_day = 0
+
+        # No form → Enter won't auto-submit; cost/currency preview the conversion live.
         pc1, pc2 = st.columns([3, 1])
         item_cost = pc1.number_input("Cost", min_value=0.0, step=10.0, key="new_item_cost")
         item_currency = pc2.selectbox(
@@ -194,35 +272,18 @@ with plan_tab:
             key="new_item_ccy",
         )
         if item_cost and item_currency != home:
-            preview = convert(Decimal(str(item_cost)), item_currency, home)
-            st.caption(f"≈ {preview} {home}")
+            st.caption(f"≈ {convert(Decimal(str(item_cost)), item_currency, home)} {home}")
 
-        with st.form("add_item", clear_on_submit=True):
-            category = st.selectbox("Type", ITEM_CATEGORIES)
-            item_name = st.text_input("Name")
-            lc1, lc2 = st.columns(2)
-            item_leg = lc1.selectbox(
-                "City",
-                leg_choices,
-                format_func=lambda lid: leg_label.get(lid, "General"),
-            )
-            item_day = lc2.number_input("Day (optional)", min_value=0, step=1)
-            if st.form_submit_button("Add item"):
-                item_errors = validate_new_item(item_name, item_cost)
-                if item_errors:
-                    for err in item_errors:
-                        st.error(err)
-                else:
-                    add_item(
-                        trip_id,
-                        item_leg,
-                        category,
-                        item_name,
-                        Decimal(str(item_cost)),
-                        item_currency,
-                        item_day or None,
-                    )
-                    st.rerun()
+        st.selectbox("Type", ITEM_CATEGORIES, key="new_item_type")
+        st.text_input("Name", key="new_item_name")
+        lc1, lc2 = st.columns(2)
+        lc1.selectbox(
+            "City", leg_choices, format_func=lambda lid: leg_label.get(lid, "General"), key=leg_key
+        )
+        lc2.number_input("Day (optional)", min_value=0, step=1, key="new_item_day")
+        st.button("Add item", on_click=_submit_item, args=(trip_id, leg_key))
+        for err in st.session_state.item_errors:
+            st.error(err)
 
         for it in items:
             row, remove = st.columns([6, 1])
