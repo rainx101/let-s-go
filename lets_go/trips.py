@@ -23,9 +23,17 @@ class DraftLeg:
     end_date: date | None = None
     need_flight: bool = False
     need_hotel: bool = False
+    budget_cap: Decimal | None = None
 
 
 # --- pure helpers (testable) ------------------------------------------------
+
+
+def normalize_place(name: str) -> str:
+    """Tidy a place name: trim, collapse inner whitespace, Title Case.
+    Cheap cleanup so obvious formatting differences don't trip up planning;
+    real place validation (geocoding) comes in Phase 2."""
+    return " ".join(name.split()).title()
 
 
 def trip_date_range(legs: list[DraftLeg]) -> tuple[date | None, date | None]:
@@ -51,7 +59,21 @@ def validate_new_trip(name: str, legs: list[DraftLeg]) -> list[str]:
             errors.append(f"City {i}: end date must be after the start date.")
         if leg.need_flight and not leg.from_city.strip():
             errors.append(f"City {i}: add a departure city to search flights.")
+        origin = leg.from_city.strip()
+        if origin and origin.casefold() == leg.city.strip().casefold():
+            errors.append(f"City {i}: destination can't be the same as the departure city.")
     return errors
+
+
+def validate_budget_caps(trip_cap: Decimal | None, legs: list[DraftLeg]) -> list[str]:
+    """Per-destination caps may not sum past the overall trip cap.
+    No trip cap means no constraint; stops without a cap don't count."""
+    if trip_cap is None:
+        return []
+    total = sum((leg.budget_cap for leg in legs if leg.budget_cap is not None), Decimal(0))
+    if total > trip_cap:
+        return [f"Destination budgets ({total}) exceed the trip cap ({trip_cap})."]
+    return []
 
 
 def validate_new_item(name: str, cost: float) -> list[str]:
@@ -86,8 +108,8 @@ def create_trip(
         for pos, leg in enumerate(legs):
             cur.execute(
                 "INSERT INTO legs (trip_id, city, country, from_city, from_country, "
-                "start_date, end_date, need_flight, need_hotel, position) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "start_date, end_date, need_flight, need_hotel, budget_cap, position) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     trip_id,
                     leg.city.strip(),
@@ -98,6 +120,7 @@ def create_trip(
                     leg.end_date,
                     leg.need_flight,
                     leg.need_hotel,
+                    leg.budget_cap,
                     pos,
                 ),
             )
@@ -115,7 +138,7 @@ def list_trips() -> list[dict]:
         trips = cur.fetchall()
         cur.execute(
             "SELECT trip_id, city, country, from_city, from_country, start_date, end_date, "
-            "need_flight, need_hotel, position FROM legs ORDER BY position"
+            "need_flight, need_hotel, budget_cap, position FROM legs ORDER BY position"
         )
         legs = cur.fetchall()
 
@@ -133,15 +156,16 @@ def add_item(
     category: str,
     name: str,
     cost: Decimal,
+    currency: str,
     day: int | None,
 ) -> int:
-    """Insert one planned item (cost in the trip's home currency); return its id."""
+    """Insert one planned item (cost in its original `currency`); return its id."""
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO items (trip_id, leg_id, category, name, cost, day) "
-            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-            (trip_id, leg_id, category, name.strip(), cost, day),
+            "INSERT INTO items (trip_id, leg_id, category, name, cost, currency, day) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+            (trip_id, leg_id, category, name.strip(), cost, currency, day),
         )
         row = cur.fetchone()
         assert row is not None  # INSERT ... RETURNING always yields a row
@@ -153,7 +177,7 @@ def list_items(trip_id: int) -> list[dict]:
     conn = get_connection()
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.day, i.position "
+            "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.currency, i.day, i.position "
             "FROM items i LEFT JOIN legs l ON l.id = i.leg_id "
             "WHERE i.trip_id = %s "
             "ORDER BY l.position NULLS FIRST, i.day NULLS FIRST, i.position, i.id",

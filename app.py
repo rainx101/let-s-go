@@ -8,6 +8,7 @@ import streamlit as st
 
 from lets_go.auth import require_login
 from lets_go.budget import budget_progress, is_over_budget, remaining_budget, total_spent
+from lets_go.currency import convert
 from lets_go.db import health_check, init_db
 from lets_go.trips import (
     DraftLeg,
@@ -16,6 +17,8 @@ from lets_go.trips import (
     delete_item,
     list_items,
     list_trips,
+    normalize_place,
+    validate_budget_caps,
     validate_new_item,
     validate_new_trip,
 )
@@ -58,62 +61,90 @@ with plan_tab:
     budget_cap = c2.number_input("Budget cap", min_value=0.0, step=100.0, key="trip_budget")
 
     st.subheader("Destinations")
+    st.session_state.setdefault("editing_index", None)
+    draft_legs = st.session_state.draft_legs
 
-    for i, leg in enumerate(st.session_state.draft_legs):
-        row, remove = st.columns([6, 1])
+    for i, leg in enumerate(draft_legs):
+        row, edit, remove = st.columns([6, 1, 1])
         flags = ("✈️" if leg.need_flight else "") + ("🏨" if leg.need_hotel else "")
         origin = f"{leg.from_city} → " if leg.from_city else ""
         place = f"{origin}**{leg.city}**" + (f", {leg.country}" if leg.country else "")
-        dates = f"{leg.start_date} → {leg.end_date}"
-        row.write(f"{place} · {dates} {flags}")
+        cap = f" · cap {leg.budget_cap}" if leg.budget_cap is not None else ""
+        row.write(f"{place} · {leg.start_date} → {leg.end_date}{cap} {flags}")
+        if edit.button("✏️", key=f"ed_{i}"):
+            st.session_state.editing_index = i
+            st.rerun()
         if remove.button("✕", key=f"rm_{i}"):
-            st.session_state.draft_legs.pop(i)
+            draft_legs.pop(i)
+            st.session_state.editing_index = None
+            st.rerun()
+
+    idx = st.session_state.editing_index
+    ed = draft_legs[idx] if idx is not None and idx < len(draft_legs) else None
+    today = date.today()
+
+    if ed is not None:
+        st.info(f"Editing destination {idx + 1}: {ed.city or 'unnamed'}")
+        if st.button("Cancel edit"):
+            st.session_state.editing_index = None
             st.rerun()
 
     with st.form("add_city", clear_on_submit=True):
-        st.markdown("**Add destination**")
+        st.markdown("**Edit destination**" if ed else "**Add destination**")
         oc1, oc2 = st.columns(2)
-        from_city = oc1.text_input("From city (optional)")
-        from_country = oc2.text_input("From country (optional)")
+        from_city = oc1.text_input("From city (optional)", value=ed.from_city if ed else "")
+        from_country = oc2.text_input(
+            "From country (optional)", value=ed.from_country if ed else ""
+        )
         tc1, tc2 = st.columns(2)
-        city = tc1.text_input("To city")
-        country = tc2.text_input("Country (optional)")
-        today = date.today()
-        travel_dates = st.date_input("Travel dates", value=(today, today + timedelta(days=1)))
+        city = tc1.text_input("To city", value=ed.city if ed else "")
+        country = tc2.text_input("Country (optional)", value=ed.country if ed else "")
+        dc1, dc2 = st.columns(2)
+        start = dc1.date_input("Start date", value=ed.start_date if ed else today)
+        end = dc2.date_input("End date", value=ed.end_date if ed else today + timedelta(days=1))
+        leg_cap = st.number_input(
+            "Budget cap for this stop (optional)",
+            min_value=0.0,
+            step=100.0,
+            value=float(ed.budget_cap) if ed and ed.budget_cap else 0.0,
+        )
         fc, hc = st.columns(2)
-        need_flight = fc.checkbox("Need flight")
-        need_hotel = hc.checkbox("Need hotel")
-        if st.form_submit_button("Add destination"):
-            picked = list(travel_dates) if isinstance(travel_dates, tuple) else [travel_dates]
-            start = picked[0] if picked else None
-            end = picked[1] if len(picked) > 1 else None
+        need_flight = fc.checkbox("Need flight", value=ed.need_flight if ed else False)
+        need_hotel = hc.checkbox("Need hotel", value=ed.need_hotel if ed else False)
+        if st.form_submit_button("Save changes" if ed else "Add destination"):
             leg = DraftLeg(
-                city=city,
-                country=country,
-                from_city=from_city,
-                from_country=from_country,
+                city=normalize_place(city),
+                country=country.strip(),
+                from_city=normalize_place(from_city),
+                from_country=from_country.strip(),
                 start_date=start,
                 end_date=end,
                 need_flight=need_flight,
                 need_hotel=need_hotel,
+                budget_cap=Decimal(str(leg_cap)) if leg_cap else None,
             )
             problems = validate_new_trip("_", [leg])  # name placeholder; check this leg only
             if problems:
                 for p in problems:
                     st.warning(p)
+            elif ed is not None:
+                draft_legs[idx] = leg
+                st.session_state.editing_index = None
+                st.rerun()
             else:
-                st.session_state.draft_legs.append(leg)
+                draft_legs.append(leg)
                 st.rerun()
 
     if st.button("Save trip", type="primary"):
-        errors = validate_new_trip(name, st.session_state.draft_legs)
+        cap = Decimal(str(budget_cap)) if budget_cap else None
+        errors = validate_new_trip(name, draft_legs) + validate_budget_caps(cap, draft_legs)
         if errors:
             for err in errors:
                 st.error(err)
         else:
-            cap = Decimal(str(budget_cap)) if budget_cap else None
-            trip_id = create_trip(name, home_currency, cap, st.session_state.draft_legs)
+            trip_id = create_trip(name, home_currency, cap, draft_legs)
             st.session_state.draft_legs = []
+            st.session_state.editing_index = None
             st.success(f"Saved trip #{trip_id}. See the Receipts tab.")
 
     st.divider()
@@ -130,30 +161,44 @@ with plan_tab:
         )
         trip = next(t for t in trips if t["id"] == trip_id)
         legs = trip["legs"]
-        currency = trip["home_currency"]
+        home = trip["home_currency"]
         items = list_items(trip_id)
 
-        spent = total_spent([float(it["cost"]) for it in items])
+        def home_amount(item: dict) -> Decimal:
+            return convert(item["cost"], item["currency"] or home, home)
+
+        spent = total_spent([float(home_amount(it)) for it in items])
         if trip["budget_cap"] is not None:
             cap = float(trip["budget_cap"])
             st.progress(budget_progress(cap, spent))
             left = remaining_budget(cap, [spent])
-            msg = f"Spent {spent:,.2f} / {cap:,.2f} {currency} · {left:,.2f} left"
+            msg = f"Spent {spent:,.2f} / {cap:,.2f} {home} · {left:,.2f} left"
             if is_over_budget(cap, [spent]):
                 st.error(f"{msg} — over budget")
             else:
                 st.caption(msg)
         else:
-            st.caption(f"Spent {spent:,.2f} {currency} · no budget cap set")
+            st.caption(f"Spent {spent:,.2f} {home} · no budget cap set")
 
         # leg picker options: each leg, plus "General" (no city)
         leg_choices: list[int | None] = [leg["id"] for leg in legs] + [None]
         leg_label = {leg["id"]: leg["city"] for leg in legs}
 
+        # Cost + currency live outside the form so the conversion previews as you type.
+        pc1, pc2 = st.columns([3, 1])
+        item_cost = pc1.number_input("Cost", min_value=0.0, step=10.0, key="new_item_cost")
+        item_currency = pc2.selectbox(
+            "Currency",
+            CURRENCIES,
+            index=CURRENCIES.index(home) if home in CURRENCIES else 0,
+            key="new_item_ccy",
+        )
+        if item_cost and item_currency != home:
+            preview = convert(Decimal(str(item_cost)), item_currency, home)
+            st.caption(f"≈ {preview} {home}")
+
         with st.form("add_item", clear_on_submit=True):
-            ic1, ic2 = st.columns(2)
-            category = ic1.selectbox("Type", ITEM_CATEGORIES)
-            item_cost = ic2.number_input(f"Cost ({currency})", min_value=0.0, step=10.0)
+            category = st.selectbox("Type", ITEM_CATEGORIES)
             item_name = st.text_input("Name")
             lc1, lc2 = st.columns(2)
             item_leg = lc1.selectbox(
@@ -174,6 +219,7 @@ with plan_tab:
                         category,
                         item_name,
                         Decimal(str(item_cost)),
+                        item_currency,
                         item_day or None,
                     )
                     st.rerun()
@@ -184,7 +230,10 @@ with plan_tab:
             where = leg_label.get(it["leg_id"], "General")
             day = f" · day {it['day']}" if it["day"] else ""
             est = " (est.)" if it["category"] == "restaurant" else ""
-            row.write(f"{icon} **{it['name']}** — {it['cost']} {currency}{est} · {where}{day}")
+            ccy = it["currency"] or home
+            converted = f" ≈ {home_amount(it)} {home}" if ccy != home else ""
+            price = f"{it['cost']} {ccy}{converted}"
+            row.write(f"{icon} **{it['name']}** — {price}{est} · {where}{day}")
             if remove.button("✕", key=f"rm_item_{it['id']}"):
                 delete_item(it["id"])
                 st.rerun()
@@ -207,9 +256,9 @@ with receipts_tab:
                 place = f"{origin}**{leg['city']}**" + (
                     f", {leg['country']}" if leg["country"] else ""
                 )
-                st.write(
-                    f"- {place} · {leg['start_date'] or '?'} → {leg['end_date'] or '?'} {flags}"
-                )
+                cap = f" · cap {leg['budget_cap']}" if leg.get("budget_cap") is not None else ""
+                span = f"{leg['start_date'] or '?'} → {leg['end_date'] or '?'}"
+                st.write(f"- {place} · {span}{cap} {flags}")
 
 with restaurants_tab:
     st.header("Restaurants by city")

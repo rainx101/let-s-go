@@ -1,8 +1,16 @@
 """Tests for the pure trip helpers (no DB)."""
 
 from datetime import date
+from decimal import Decimal
 
-from lets_go.trips import DraftLeg, trip_date_range, validate_new_item, validate_new_trip
+from lets_go.trips import (
+    DraftLeg,
+    normalize_place,
+    trip_date_range,
+    validate_budget_caps,
+    validate_new_item,
+    validate_new_trip,
+)
 
 
 def test_date_range_spans_earliest_start_to_latest_end():
@@ -28,6 +36,7 @@ def _leg(
     end_date: date = date(2026, 5, 2),
     need_flight: bool = False,
     from_city: str = "",
+    budget_cap: Decimal | None = None,
 ) -> DraftLeg:
     """A valid draft leg (Tokyo, one-night range) with fields overridable."""
     return DraftLeg(
@@ -36,6 +45,7 @@ def _leg(
         end_date=end_date,
         need_flight=need_flight,
         from_city=from_city,
+        budget_cap=budget_cap,
     )
 
 
@@ -61,6 +71,19 @@ def test_validate_flight_requires_departure_city():
 def test_validate_ok_with_departure_city_for_flight():
     legs = [_leg(need_flight=True, from_city="Los Angeles")]
     assert validate_new_trip("Japan", legs) == []
+
+
+def test_validate_flags_same_from_and_destination():
+    errors = validate_new_trip("Japan", [_leg(city="Tokyo", from_city=" tokyo ")])
+    assert any("same as the departure city" in e for e in errors)
+
+
+def test_normalize_place_trims_collapses_and_titlecases():
+    assert normalize_place("  new   york ") == "New York"
+
+
+def test_normalize_place_empty_stays_empty():
+    assert normalize_place("   ") == ""
 
 
 def test_validate_requires_name():
@@ -93,3 +116,24 @@ def test_validate_item_requires_name():
 def test_validate_item_rejects_negative_cost():
     errors = validate_new_item("Flight", -10.0)
     assert any("cost can't be negative" in e for e in errors)
+
+
+def test_budget_caps_ok_when_sum_within_trip_cap():
+    legs = [_leg(budget_cap=Decimal("400")), _leg(city="Osaka", budget_cap=Decimal("500"))]
+    assert validate_budget_caps(Decimal("1000"), legs) == []
+
+
+def test_budget_caps_flagged_when_sum_exceeds_trip_cap():
+    legs = [_leg(budget_cap=Decimal("700")), _leg(city="Osaka", budget_cap=Decimal("500"))]
+    errors = validate_budget_caps(Decimal("1000"), legs)
+    assert any("exceed the trip cap" in e for e in errors)
+
+
+def test_budget_caps_ignores_stops_without_a_cap():
+    legs = [_leg(budget_cap=Decimal("900")), _leg(city="Osaka")]
+    assert validate_budget_caps(Decimal("1000"), legs) == []
+
+
+def test_budget_caps_no_constraint_without_trip_cap():
+    legs = [_leg(budget_cap=Decimal("900")), _leg(city="Osaka", budget_cap=Decimal("900"))]
+    assert validate_budget_caps(None, legs) == []

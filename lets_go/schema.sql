@@ -21,12 +21,14 @@ CREATE TABLE IF NOT EXISTS legs (
     end_date     DATE,
     need_flight  BOOLEAN NOT NULL DEFAULT FALSE,
     need_hotel   BOOLEAN NOT NULL DEFAULT FALSE,
+    budget_cap   NUMERIC(12, 2),
     position     INTEGER NOT NULL DEFAULT 0
 );
 
 -- Added after the initial legs table shipped; idempotent for existing DBs.
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_city TEXT;
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_country TEXT;
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS budget_cap NUMERIC(12, 2);
 
 CREATE TABLE IF NOT EXISTS items (
     id         SERIAL PRIMARY KEY,
