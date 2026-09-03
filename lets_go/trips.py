@@ -23,6 +23,7 @@ class DraftLeg:
     end_date: date | None = None
     need_flight: bool = False
     need_hotel: bool = False
+    budget_cap: Decimal | None = None
 
 
 # --- pure helpers (testable) ------------------------------------------------
@@ -52,6 +53,17 @@ def validate_new_trip(name: str, legs: list[DraftLeg]) -> list[str]:
         if leg.need_flight and not leg.from_city.strip():
             errors.append(f"City {i}: add a departure city to search flights.")
     return errors
+
+
+def validate_budget_caps(trip_cap: Decimal | None, legs: list[DraftLeg]) -> list[str]:
+    """Per-destination caps may not sum past the overall trip cap.
+    No trip cap means no constraint; stops without a cap don't count."""
+    if trip_cap is None:
+        return []
+    total = sum((leg.budget_cap for leg in legs if leg.budget_cap is not None), Decimal(0))
+    if total > trip_cap:
+        return [f"Destination budgets ({total}) exceed the trip cap ({trip_cap})."]
+    return []
 
 
 def validate_new_item(name: str, cost: float) -> list[str]:
@@ -86,8 +98,8 @@ def create_trip(
         for pos, leg in enumerate(legs):
             cur.execute(
                 "INSERT INTO legs (trip_id, city, country, from_city, from_country, "
-                "start_date, end_date, need_flight, need_hotel, position) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "start_date, end_date, need_flight, need_hotel, budget_cap, position) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     trip_id,
                     leg.city.strip(),
@@ -98,6 +110,7 @@ def create_trip(
                     leg.end_date,
                     leg.need_flight,
                     leg.need_hotel,
+                    leg.budget_cap,
                     pos,
                 ),
             )
@@ -115,7 +128,7 @@ def list_trips() -> list[dict]:
         trips = cur.fetchall()
         cur.execute(
             "SELECT trip_id, city, country, from_city, from_country, start_date, end_date, "
-            "need_flight, need_hotel, position FROM legs ORDER BY position"
+            "need_flight, need_hotel, budget_cap, position FROM legs ORDER BY position"
         )
         legs = cur.fetchall()
 

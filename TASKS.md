@@ -33,9 +33,10 @@ Goal: build, edit, and save a trip with a working budget — no external APIs ye
       (flight/hotel/spot/restaurant + cost + day + order), plus fields for
       currency and status. (Draft in PRD §7 — finalize here.)
 - [x] **Create trip:** name, one or more **cities/legs** — each **From city/
-      country (optional)** → **To city/country** with a **required** date range
-      (end after start, no same-day) — **home currency**, single **budget cap**
-      (PRD §6).
+      country (optional)** → **To city/country** with **required** Start/End
+      dates (end after start, no same-day) and an **optional per-stop budget
+      cap** (sum can't exceed the trip cap); **editable** before saving —
+      **home currency**, single overall **budget cap** (PRD §6).
 - [x] Toggle per leg: **need flight? need hotel?**
 - [x] **Add item manually** (flight/hotel/spot/restaurant) with a typed cost;
       assign to a **day** (and city/leg).

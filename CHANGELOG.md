@@ -6,6 +6,28 @@ step**.
 
 ---
 
+## 2026-09-03 — Editable destinations + per-stop budget caps
+
+**What we did**
+- **Dates as two boxes:** Start date / End date (still required, end after start)
+  instead of a single range picker.
+- **Edit a drafted destination:** each stop has ✏️ (pre-fills the form to update
+  it in place) and ✕; a "Cancel edit" escape hatch. Driven by an
+  `editing_index` in session state.
+- **Per-destination budget cap** (optional) on each stop —
+  `legs.budget_cap` added idempotently (verified live). Shown in the draft list
+  and Receipts.
+- **Rule:** `validate_budget_caps` — the sum of per-stop caps may not exceed the
+  overall trip cap (no trip cap ⇒ no constraint; capless stops ignored). Checked
+  at Save alongside the leg validation.
+- **Tests:** 4 new for `validate_budget_caps` (29 total).
+- Verified: ruff/ty/pytest green; live Neon round-trip (migrate → create with
+  per-leg caps → read back → delete; validator both ways) works; app loads clean.
+
+**Next step**
+- Rest of Phase 1: inline item editing + export to file. Then Phase 2: two-stage
+  search (per-destination flight + hotel), budgeted against each stop's cap.
+
 ## 2026-09-03 — Expedia-style destination builder (from→to, required dates)
 
 **What we did**
