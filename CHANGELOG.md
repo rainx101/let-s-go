@@ -6,6 +6,17 @@ step**.
 
 ---
 
+## 2026-09-03 — Hotfix: reconnect stale Neon connection
+
+**What we did**
+- `get_connection()` cached one Neon connection; Neon's scale-to-zero / idle
+  timeout closes it server-side, so the next render crashed with
+  `OperationalError: the connection is closed`. Now `get_connection()` checks
+  `conn.closed` and **transparently reconnects** (clears the cached resource and
+  opens a fresh connection).
+- Verified live: closing the connection then calling `get_connection()` /
+  `health_check()` reconnects cleanly.
+
 ## 2026-09-03 — Phase 2 Slice 2: guided step frame; items moved into steps
 
 **What we did**

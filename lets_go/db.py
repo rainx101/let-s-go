@@ -25,9 +25,22 @@ def _connection_string() -> str:
 
 
 @st.cache_resource
-def get_connection() -> psycopg.Connection:
-    """A cached, reused Postgres connection (autocommit for simple reads/writes)."""
+def _cached_connection() -> psycopg.Connection:
+    """The cached Postgres connection (autocommit for simple reads/writes)."""
     return psycopg.connect(_connection_string(), autocommit=True)
+
+
+def get_connection() -> psycopg.Connection:
+    """The Neon connection, reconnecting if the cached one went stale.
+
+    Neon's scale-to-zero / idle timeout can close the connection server-side; the
+    cached object then reports `closed`, so we drop it and open a fresh one.
+    """
+    conn = _cached_connection()
+    if conn.closed:
+        _cached_connection.clear()
+        conn = _cached_connection()
+    return conn
 
 
 def health_check() -> bool:
