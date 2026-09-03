@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from lets_go.trips import (
     DraftLeg,
+    destination_budgets,
     normalize_place,
     trip_date_range,
     validate_budget_caps,
@@ -84,6 +85,25 @@ def test_normalize_place_trims_collapses_and_titlecases():
 
 def test_normalize_place_empty_stays_empty():
     assert normalize_place("   ") == ""
+
+
+def test_destination_budgets_even_split_when_no_caps():
+    legs = [_leg(city="Tokyo"), _leg(city="Osaka")]
+    assert destination_budgets(Decimal("500"), legs) == [Decimal("250"), Decimal("250")]
+
+
+def test_destination_budgets_single_stop_gets_whole_budget():
+    assert destination_budgets(Decimal("500"), [_leg()]) == [Decimal("500")]
+
+
+def test_destination_budgets_explicit_cap_then_split_remainder():
+    legs = [_leg(city="Tokyo", budget_cap=Decimal("300")), _leg(city="Osaka")]
+    assert destination_budgets(Decimal("500"), legs) == [Decimal("300"), Decimal("200")]
+
+
+def test_destination_budgets_no_overall_cap_returns_leg_caps():
+    legs = [_leg(city="Tokyo", budget_cap=Decimal("100")), _leg(city="Osaka")]
+    assert destination_budgets(None, legs) == [Decimal("100"), None]
 
 
 def test_validate_requires_name():

@@ -65,6 +65,20 @@ def validate_new_trip(name: str, legs: list[DraftLeg]) -> list[str]:
     return errors
 
 
+def destination_budgets(overall_cap: Decimal | None, legs: list[DraftLeg]) -> list[Decimal | None]:
+    """Per-destination budget (home currency): a stop's own cap when set,
+    otherwise an even share of the overall budget left after the capped stops.
+    With no overall cap, only the explicit per-stop caps are returned."""
+    caps = [leg.budget_cap for leg in legs]
+    if overall_cap is None:
+        return caps
+    capped_total = sum((c for c in caps if c is not None), Decimal(0))
+    capless = [c for c in caps if c is None]
+    remaining = max(overall_cap - capped_total, Decimal(0))
+    share = remaining / len(capless) if capless else Decimal(0)
+    return [c if c is not None else share for c in caps]
+
+
 def validate_budget_caps(trip_cap: Decimal | None, legs: list[DraftLeg]) -> list[str]:
     """Per-destination caps may not sum past the overall trip cap.
     No trip cap means no constraint; stops without a cap don't count."""

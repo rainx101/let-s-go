@@ -6,6 +6,32 @@ step**.
 
 ---
 
+## 2026-09-03 — Builder fixes + per-card local-currency budgets
+
+**What we did**
+- **Destination builder reliability:** replaced the `st.form` with keyed
+  `session_state` widgets + callbacks. Fixes two reported bugs — pressing Enter
+  in a field no longer auto-adds a destination, and **Edit (✏️) now repopulates
+  the whole card** so a stop can actually be changed. Add/Save/Cancel/Remove all
+  manage edit state; validation errors show while preserving what you typed.
+- **Per-destination budget on each card:** shows a stop's effective budget in the
+  **local currency**, inferred from the country. `destination_budgets` (pure,
+  tested): a stop's own cap when set, else an even share of the overall budget
+  left after the capped stops (e.g. 500 with two capless stops → 250 each);
+  `currency_for_country` maps country → currency, falling back to the home
+  currency when unknown.
+- **Add-item: same Enter fix** — dropped its form too, so Enter in the item name
+  no longer auto-adds; per-trip leg key avoids option mismatches on trip switch.
+- **Clear destination fields after "Save trip"** — the builder resets to a clean
+  slate for the next trip.
+- **Tests:** 8 new (44 total) for `destination_budgets` and `currency_for_country`.
+- Verified: ruff/ty/pytest green; live split+conversion scenario matches;
+  app loads clean.
+
+**Next step**
+- Rest of Phase 1: inline item editing (move up/down, change day, edit price)
+  and export to file. Then Phase 2 (search + live rates/geocoding).
+
 ## 2026-09-03 — Editable destinations + per-stop budget caps
 
 **What we did**
