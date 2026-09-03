@@ -6,6 +6,27 @@ step**.
 
 ---
 
+## 2026-09-03 — Guided-flow re-plan + Phase 1: trip type, item editing, export
+
+**What we did**
+- **Docs:** rewrote the **PRD** around the guided, budget-anchored flow (skeleton →
+  activities → flight/hotel → restaurants → generate receipt → save/finalize) with
+  a **waterfall budget** and **trip type** (round/one-way); **reorganized TASKS**
+  into flow-aligned phases (Phase 2 = guided flow, Phase 3 = search/maps).
+- **Trip type:** round-trip / one-way selector at setup; `trips.trip_type` column
+  (idempotent migration), stored via `create_trip`, shown in Receipts.
+- **Item editing:** `update_item` + a per-item popover to **change day, price, and
+  currency** in the item list; budget updates live.
+- **Export to file:** `export_json` (pure, tested) + a **download button** in
+  Receipts for a JSON backup of all trips/legs/items (PRD §5).
+- **Tests:** 2 new for `export_json` (50 total).
+- Verified: ruff/ty/pytest green; live Neon round-trip (trip_type migrate/read,
+  item update, export); app loads clean.
+
+**Next step**
+- Phase 2 guided flow: wizard steps, waterfall budget header, draft/final status,
+  generate-receipt with reordering + actuals.
+
 ## 2026-09-03 — In-place editing, non-overlapping dates, friendlier trip number
 
 **What we did**

@@ -1,8 +1,9 @@
 """Trips data layer: pure helpers (validation, date range) + DB access.
 Pure helpers have no Streamlit/DB deps so they're unit-testable."""
 
+import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from psycopg.rows import dict_row
@@ -104,6 +105,24 @@ def validate_budget_caps(trip_cap: Decimal | None, legs: list[DraftLeg]) -> list
     return []
 
 
+def _json_safe(value: object) -> str:
+    """JSON encoder fallback for the types our rows carry."""
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, date | datetime):
+        return value.isoformat()
+    raise TypeError(f"not JSON serializable: {type(value).__name__}")
+
+
+def export_json(trips: list[dict], items_by_trip: dict[int, list[dict]]) -> str:
+    """Serialize trips (with their legs) and items to a JSON backup string."""
+    payload = {
+        "version": 1,
+        "trips": [{**trip, "items": items_by_trip.get(trip["id"], [])} for trip in trips],
+    }
+    return json.dumps(payload, default=_json_safe, indent=2, ensure_ascii=False)
+
+
 def validate_new_item(name: str, cost: float) -> list[str]:
     """Return a list of problems with a draft item. Empty list means valid."""
     errors: list[str] = []
@@ -122,13 +141,15 @@ def create_trip(
     home_currency: str,
     budget_cap: Decimal | None,
     legs: list[DraftLeg],
+    trip_type: str = "round_trip",
 ) -> int:
     """Insert a trip and its legs atomically; return the new trip id."""
     conn = get_connection()
     with conn.transaction(), conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO trips (name, home_currency, budget_cap) VALUES (%s, %s, %s) RETURNING id",
-            (name.strip(), home_currency, budget_cap),
+            "INSERT INTO trips (name, home_currency, budget_cap, trip_type) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (name.strip(), home_currency, budget_cap, trip_type),
         )
         row = cur.fetchone()
         assert row is not None  # INSERT ... RETURNING always yields a row
@@ -160,7 +181,7 @@ def list_trips() -> list[dict]:
     conn = get_connection()
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT id, name, home_currency, budget_cap, created_at "
+            "SELECT id, name, home_currency, budget_cap, trip_type, created_at "
             "FROM trips ORDER BY created_at DESC"
         )
         trips = cur.fetchall()
@@ -212,6 +233,16 @@ def list_items(trip_id: int) -> list[dict]:
             (trip_id,),
         )
         return cur.fetchall()
+
+
+def update_item(item_id: int, cost: Decimal, currency: str, day: int | None) -> None:
+    """Edit an item's cost, currency, and day."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE items SET cost = %s, currency = %s, day = %s WHERE id = %s",
+            (cost, currency, day, item_id),
+        )
 
 
 def delete_item(item_id: int) -> None:

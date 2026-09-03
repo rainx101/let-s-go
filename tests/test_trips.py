@@ -1,5 +1,6 @@
 """Tests for the pure trip helpers (no DB)."""
 
+import json
 from datetime import date
 from decimal import Decimal
 
@@ -7,6 +8,7 @@ from lets_go.trips import (
     DraftLeg,
     dates_overlap,
     destination_budgets,
+    export_json,
     normalize_place,
     trip_date_range,
     validate_budget_caps,
@@ -132,6 +134,28 @@ def test_validate_flags_overlapping_destinations():
     ]
     errors = validate_new_trip("Japan", legs)
     assert any("overlap" in e for e in errors)
+
+
+def test_export_json_nests_items_and_serializes_types():
+    trips = [
+        {
+            "id": 1,
+            "name": "Japan",
+            "budget_cap": Decimal("2000"),
+            "created_at": date(2026, 9, 1),
+            "legs": [],
+        }
+    ]
+    items_by_trip = {1: [{"id": 10, "name": "Ramen", "cost": Decimal("40.20")}]}
+    out = json.loads(export_json(trips, items_by_trip))
+    assert out["version"] == 1
+    assert out["trips"][0]["budget_cap"] == "2000"  # Decimal → string
+    assert out["trips"][0]["created_at"] == "2026-09-01"  # date → isoformat
+    assert out["trips"][0]["items"][0]["cost"] == "40.20"
+
+
+def test_export_json_empty_when_no_trips():
+    assert json.loads(export_json([], {})) == {"version": 1, "trips": []}
 
 
 def test_validate_requires_name():
