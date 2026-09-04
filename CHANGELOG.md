@@ -6,6 +6,21 @@ step**.
 
 ---
 
+## 2026-09-03 — Items scheduled on a date, not a day-number
+
+**What we did**
+- An item's schedule is now a **date** (optional), not an abstract "day N".
+  The add/edit date picker is **bounded by that destination's date range**, and
+  the item shows its date. Applied to all item types (consistent).
+- Data: `items.on_date DATE` (idempotent migration); `add_item` / `update_item` /
+  `list_items` use `on_date` (ordered by date within a stop). Old `day` column
+  left dormant.
+- Lean cleanup: removed the now-dead city-selector branch in the item add (adds
+  are always scoped to a destination), and the "keep the date" behavior lets you
+  add several items on the same day without re-picking.
+- Verified with a live round-trip (on_date add/update/migrate) and AppTest (the
+  bounded date picker adds an item with its date).
+
 ## 2026-09-03 — Simpler structure: editing lives in Plan, Receipts is finalized-only
 
 **What we did**

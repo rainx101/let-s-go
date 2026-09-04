@@ -48,11 +48,16 @@ CREATE TABLE IF NOT EXISTS items (
     cost       NUMERIC(12, 2) NOT NULL DEFAULT 0,
     currency   TEXT,
     day        INTEGER,
+    on_date    DATE,
     position   INTEGER NOT NULL DEFAULT 0,
     status     TEXT NOT NULL DEFAULT 'planned',
     notes      TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Items are scheduled on a real DATE (within the destination's stay), not a
+-- day-number. Added after the initial items table shipped; idempotent.
+ALTER TABLE items ADD COLUMN IF NOT EXISTS on_date DATE;
 
 CREATE INDEX IF NOT EXISTS idx_legs_trip ON legs (trip_id);
 CREATE INDEX IF NOT EXISTS idx_items_trip ON items (trip_id);
