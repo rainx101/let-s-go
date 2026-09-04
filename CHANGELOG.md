@@ -6,6 +6,20 @@ step**.
 
 ---
 
+## 2026-09-03 — Simpler structure: editing lives in Plan, Receipts is finalized-only
+
+**What we did**
+- **Plan tab** (when not planning): **Plan a trip** → **Drafts** (each expands to
+  ✏️ Edit / 🗑 Delete) → **Edit a finalized trip** (pick one → edit). Editing a
+  draft or finalized trip enters planning **in the same tab** — no more "go to the
+  Plan tab" hop.
+- **Planning → Review** ends with **💾 Save as draft** or **✅ Finalize**.
+- **Receipts tab** = **finalized trips only**: expand for read-only details, then
+  **🗑 Delete** (confirm). Removed the Resume/Finalize/Edit buttons and the "open
+  the Plan tab" banner — everything editing-related now lives in Plan.
+- Verified with AppTest: draft Edit → planning → Finalize; edit-a-finalized →
+  draft+active; Receipts shows only finalized with delete; no Resume anywhere.
+
 ## 2026-09-03 — Per-destination planning; receipt = read-only + Edit/Delete
 
 **What we did**

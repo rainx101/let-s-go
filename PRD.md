@@ -160,58 +160,56 @@ Sources:
 - https://xotelo.com/
 - https://www.searchapi.io/google-hotels-api
 
-## 9. Main flow — guided, budget-anchored (revised 2026-09-03)
+## 9. Main flow — per-destination planning (revised 2026-09-03, as built)
 
-One guided pipeline (not "save at skeleton time"); the trip is a **draft**
-throughout and **finalized** at the end. The **budget header** is visible from
-step 2 on, showing the waterfall (§6).
+A trip is a **draft** while being built and **finalized** when done. All
+creating/editing happens in the **Plan** tab; **Receipts** holds finalized trips.
 
-1. **Skeleton.** Trip type (round-trip / one-way), destinations + dates, overall
-   budget cap, whether each leg needs flight/hotel → **saved as a draft**.
-2. **Activities** (the "need", done first). Type the activities to do; **day
-   optional**; **fixed price** — **searched when a source exists, otherwise
-   hand-typed**. Spent off the top of the budget.
-3. **Flight & hotel.** Planned against the **amount the user chooses** from the
-   budget **left after activities**. Auto-search + manual fallback (§11).
-4. **Restaurants.** Get the **remaining** budget; placed **near the activities**
-   by distance.
-5. **Generate receipt → full plan.** The day-by-day plan: **recommend a day** for
-   any undated activity; **restaurants sit near the activities**; the user can
-   **move items up/down** to arrange each day.
-6. **Save the trip** → it is **finalized** and appears in the **Receipts** area,
-   which stays **editable** — swap a hotel/other pick, **hand-type the real amount
-   paid** for an accurate budget, reorder items.
-7. **After the trip / anytime:** rate restaurants like/ok/bad, mark hotels
-   preferred, add to the restaurant wishlist.
-8. **Next time in the same city:** preferred hotels and rated restaurants resurface
-   as recommendations with the "liked before" mark.
+1. **Plan a trip (skeleton).** Name, home currency, overall **budget cap** (required),
+   then add **destinations** — each a **From → To** (with a per-card **round-trip /
+   one-way** toggle), **required non-overlapping dates**, an optional **per-stop
+   budget**, and need-flight/hotel flags. Destinations are editable, and the next
+   card's "From" auto-fills from where the last leg leaves you. **Start planning**
+   saves the trip as a **draft** and opens the planner.
+2. **Plan per destination.** A navigator picks a **destination** (or **Review**).
+   For the selected stop you see **its budget** (its own cap, else an even share
+   of what's left) and add its items — **Flight / Hotel / Activity / Restaurant**
+   (auto-assigned to that stop; **day optional**; cost in any currency, converted
+   to the home currency; restaurants marked as estimates). Costs are hand-typed
+   now; **auto-search** fills them in Phase 3 (§11), always user-editable.
+3. **Review.** The whole-trip plan and running budget; finish with **Save as
+   draft** or **Finalize**.
+4. **Receipts.** Finalized trips only — expand for the **read-only** plan +
+   budget; **Delete** (with confirm).
+5. **Editing** (all in the **Plan** tab): **Drafts** (Edit → keep planning /
+   Delete) and **Edit a finalized trip** (pick one → reopens for editing).
+6. **Phase 3 additions:** flight/hotel/activity **auto-search**; **distance**
+   ordering (restaurants near activities); **recommend a day** for undated
+   activities; **reorder** items; on a finalized receipt, **rate** restaurants
+   and mark hotels **preferred**; these resurface with a "liked before" mark next
+   time in the same city.
 
-## 9a. Navigation / layout — DECIDED (2026-08-26)
+## 9a. Navigation / layout (revised 2026-09-03, as built)
 
-Three main tabs:
+Three tabs:
 
-1. **Plan** (main tab) — the working plan for a trip. The user can **move items
-   around** (rearrange spots/restaurants across days) and **adjust a price**
-   inline if a recommended/estimated one is inaccurate. This is where a trip is
-   built and edited.
+1. **Plan** — everything about creating and editing a trip. Not planning:
+   **Plan a trip** (new), **Drafts** (Edit / Delete), **Edit a finalized trip**
+   (pick → edit). Planning: the **per-destination** planner + **Review** (Save as
+   draft / Finalize). Item prices are **user-editable** inline. Editing always
+   stays in this tab (no tab-hopping).
 
-2. **Receipts** — a list of each saved trip's **receipt** (its collection entry).
-   **Clicking a receipt opens the whole plan** for that trip. From the opened
-   receipt the user can **add ratings** (rate restaurants, mark hotel preferred).
+2. **Receipts** — **finalized trips only**, read-only: expand for the full plan +
+   budget, then **Delete** (confirm). (Ratings / preferred marks on an opened
+   receipt arrive in Phase 3.)
 
-3. **Restaurants by city** — restaurants grouped **per city**. Navigation:
-   **select country → city**, then results pop up. **Filters:** good / ok / bad /
-   **wishlist**.
-   - **Multiple visits/reviews per restaurant:** each review is dated by its
-     **trip date**. A restaurant has an **expandable review section** listing all
-     reviews **newest → oldest**. The restaurant's **current rating is the latest
-     review's** rating.
-   - **Wishlist** ("restaurants I want to try") lives in this tab but is kept
-     **separate from rated restaurants** (its own filter).
+3. **Restaurants by city** (Phase 3) — restaurants grouped per city; select
+   **country → city**; filters **good / ok / bad / wishlist**; expandable
+   **dated reviews** newest → oldest (**latest review wins**); wishlist kept
+   separate.
 
-Link between tabs: ratings entered on a **Receipt** flow into the
-**Restaurants by city** list (good/ok/bad + trip-dated reviews) and into the
-preferred-hotel memory used for future recommendations.
+Link between tabs (Phase 3): ratings entered on a receipt flow into the
+**Restaurants by city** list and the preferred-hotel memory for recommendations.
 
 ## 10. Remaining details to confirm at build time
 
