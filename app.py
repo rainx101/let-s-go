@@ -431,12 +431,16 @@ def _render_steps(trip: dict) -> None:
     if choice == "review":
         _legs_summary(legs)
         _item_manager(trip, show_add=False, tag="rev")
-        if st.button("✅ Generate receipt", type="primary", key="gen_receipt"):
+        sd, fin = st.columns(2)
+        if sd.button("💾 Save as draft", key="save_draft"):
+            set_trip_status(tid, "draft")
+            st.session_state.active_trip_id = None
+            st.session_state.plan_msg = f"Saved '{trip['name']}' as a draft."
+            st.rerun()
+        if fin.button("✅ Finalize", type="primary", key="finalize"):
             set_trip_status(tid, "final")
             st.session_state.active_trip_id = None
-            st.session_state.plan_msg = (
-                f"Receipt for '{trip['name']}' finalized — see the Receipts tab."
-            )
+            st.session_state.plan_msg = f"Finalized '{trip['name']}' — see the Receipts tab."
             st.rerun()
         return
 
@@ -633,74 +637,64 @@ with plan_tab:
         st.session_state.plan_msg = ""
     active_id = st.session_state.get("active_trip_id")
     active_trip = next((t for t in trips if t["id"] == active_id), None) if active_id else None
-    if active_id and active_trip is None:
-        # `trips` was read at the top of the run, before a just-saved draft
-        # existed; re-fetch so a new draft opens in the steps rather than falling
-        # back to the skeleton (with the draft only showing in Receipts).
+    if active_id and active_trip is None:  # `trips` predates a just-saved draft; re-fetch
         active_trip = next((t for t in list_trips() if t["id"] == active_id), None)
+
     if active_trip is not None:
         _render_steps(active_trip)
     else:
         st.session_state.active_trip_id = None
         _render_skeleton()
 
+        st.divider()
+        st.subheader("Drafts")
+        drafts = [t for t in trips if t.get("status") == "draft"]
+        if not drafts:
+            st.caption("No drafts yet.")
+        for trip in drafts:
+            cities = ", ".join(leg["city"] for leg in trip["legs"]) or "no cities"
+            with st.expander(f"{trip['name']} · {cities}"):
+                _legs_summary(trip["legs"])
+                if st.button("✏️ Edit", key=f"editdraft_{trip['id']}"):
+                    st.session_state.active_trip_id = trip["id"]
+                    st.rerun()
+                _delete_trip_control(trip)
+
+        st.divider()
+        st.subheader("Edit a finalized trip")
+        finals = [t for t in trips if t.get("status") != "draft"]
+        if finals:
+            labels = {t["id"]: t["name"] for t in finals}
+            pick = st.selectbox(
+                "Trip", [t["id"] for t in finals], format_func=lambda i: labels[i], key="edit_final"
+            )
+            if st.button("✏️ Edit this trip", key="edit_final_go"):
+                set_trip_status(pick, "draft")
+                st.session_state.active_trip_id = pick
+                st.rerun()
+        else:
+            st.caption("No finalized trips yet.")
+
 with receipts_tab:
     st.header("Receipts")
-    _active_id = st.session_state.get("active_trip_id")
-    _active = next((t for t in trips if t["id"] == _active_id), None) if _active_id else None
-    if _active is not None:
-        st.info(f"▶️ You're planning **{_active['name']}** — open the **Plan** tab to continue.")
-    if not trips:
-        st.info("No trips yet. Create one in the Plan tab.")
-    else:
+    if trips:
         st.download_button(
             "⬇️ Export all trips (JSON)",
             data=export_json(trips, {t["id"]: list_items(t["id"]) for t in trips}),
             file_name="lets-go-trips.json",
             mime="application/json",
         )
-        drafts = [t for t in trips if t.get("status") == "draft"]
-        finals = [t for t in trips if t.get("status") != "draft"]
-
-        if drafts:
-            st.subheader("Drafts (in progress)")
-            for trip in drafts:
-                legs = trip["legs"]
-                cities = ", ".join(leg["city"] for leg in legs) or "no cities"
-                start, end = _range_bounds(legs)
-                span = f"{start} – {end}" if start else "dates TBD"
-                with st.expander(f"{trip['name']} · {cities} · {span}"):
-                    _legs_summary(legs)
-                    home = trip["home_currency"]
-                    spent = total_spent(
-                        [float(_home_amount(it, home)) for it in list_items(trip["id"])]
-                    )
-                    _budget_line(spent, trip["budget_cap"], home, "Trip")
-                    rc1, rc2 = st.columns(2)
-                    if rc1.button("▶️ Resume planning", key=f"resume_{trip['id']}"):
-                        st.session_state.active_trip_id = trip["id"]
-                        st.rerun()
-                    if rc2.button("✅ Finalize", key=f"fin_{trip['id']}"):
-                        set_trip_status(trip["id"], "final")
-                        st.rerun()
-                    _delete_trip_control(trip)
-                    st.caption("Plan each destination in the Plan tab (Resume planning).")
-
-        if finals:
-            st.subheader("Finalized")
-            for trip in finals:
-                legs = trip["legs"]
-                cities = ", ".join(leg["city"] for leg in legs) or "no cities"
-                start, end = _range_bounds(legs)
-                span = f"{start} – {end}" if start else "dates TBD"
-                with st.expander(f"{trip['name']} · {cities} · {span}"):
-                    _render_receipt(trip)
-                    if st.button("✏️ Edit", key=f"editfinal_{trip['id']}"):
-                        set_trip_status(trip["id"], "draft")
-                        st.session_state.active_trip_id = trip["id"]
-                        st.rerun()
-                    st.caption("Edit reopens this trip for planning (continue in the Plan tab).")
-                    _delete_trip_control(trip)
+    finals = [t for t in trips if t.get("status") != "draft"]
+    if not finals:
+        st.info("No finalized trips yet. Plan one in the Plan tab and finalize it.")
+    for trip in finals:
+        legs = trip["legs"]
+        cities = ", ".join(leg["city"] for leg in legs) or "no cities"
+        start, end = _range_bounds(legs)
+        span = f"{start} – {end}" if start else "dates TBD"
+        with st.expander(f"{trip['name']} · {cities} · {span}"):
+            _render_receipt(trip)
+            _delete_trip_control(trip)
 
 with restaurants_tab:
     st.header("Restaurants by city")
