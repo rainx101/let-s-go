@@ -58,28 +58,26 @@ APIs yet. (Reorganized 2026-09-03 to match the guided flow, PRD §9.)
       full plan** _(shows legs; item-level detail arrives with the guided flow)_.
 - [x] **Export to file** (JSON backup of trips + legs + items) — PRD §5.
 
-## Phase 2 — Guided flow (manual, budget-anchored)
+## Phase 2 — Per-destination planning (manual) — mostly done
 
-Goal: the step-by-step pipeline (PRD §9) with the **waterfall budget** (PRD §6),
-still on **manual entry** — search is layered on in Phase 3. Draft saved early,
-finalized at the end.
+Goal: a clear draft→finalize flow (PRD §9, as built), still **manual entry** —
+search is layered on in Phase 3. All create/edit lives in the **Plan** tab.
 
-- [~] **Wizard steps:** Skeleton → **Activities** → **Flight & hotel** →
-      **Restaurants** → **Generate receipt** _(step frame + a total-spent header
-      done in Slice 2; the full waterfall header is Slice 3)_.
-- [x] **Activities first:** add activities (day optional), **fixed price
-      hand-typed** in the Activities step (search in Phase 3).
-- [ ] **Waterfall budget:** activities locked → choose a **flight+hotel** amount
-      from the remainder → **restaurants get the rest**; header shows all three.
-      _(Slice 3.)_
-- [x] **Draft persistence:** skeleton **saves as a draft**, planned through the
-      steps, **finalized** by "Generate receipt" (PRD §9).
-- [ ] **Generate receipt / full plan:** recommend a **day** for undated
-      activities; **move items up/down** to arrange each day. _(Slice 4; a basic
-      Review + finalize exists.)_
-- [ ] **Receipt editing:** swap a hotel/other pick, edit items, **hand-type the
-      real amount paid** for an accurate budget; re-finalize.
-- [ ] Finalized trip appears in **Receipts** (also reorderable / editable).
+- [x] **Per-destination planner:** after **Start planning**, a navigator picks a
+      destination (or **Review**); each stop shows **its budget** and adds its
+      **Flight / Hotel / Activity / Restaurant** items (auto-assigned to the stop,
+      day optional, any currency → home).
+- [x] **Draft persistence:** **Start planning** saves a **draft**; **Review** ends
+      with **Save as draft** or **Finalize** (PRD §9).
+- [x] **Editing in the Plan tab:** **Drafts** (Edit / Delete) and **Edit a
+      finalized trip** (pick → reopens for editing). No tab-hopping.
+- [x] **Receipts = finalized only:** read-only plan + budget; **Delete** (confirm).
+- [x] **Per-stop budget shown** (own cap, else even share) — plan against each stop.
+- [ ] **Budget refinement (optional):** the activities-first **waterfall**
+      (activities → chosen flight+hotel → restaurants) as a richer alternative to
+      the even-split per-stop budget (PRD §6). _Deferred; per-stop budget works._
+- [ ] **Hand-type the real amount paid** for an accurate budget — item cost is
+      already editable; consider an explicit estimate-vs-actual later (PRD §7).
 
 ## Phase 3 — Auto-search & maps (the risky, defensive layer)
 
@@ -91,6 +89,9 @@ Every auto-value must remain **user-editable**; manual entry always works.
       (respect ~1 req/sec + user-agent).
 - [ ] **Distance ordering:** order each day's items by distance; **place
       restaurants near the activities** (PRD §6/§8/§9).
+- [ ] **Day arrangement:** **recommend a day** for undated activities (spread
+      across the stop's date range); allow **reorder items up/down** per day
+      (PRD §9). _(Moved from Phase 2 — belongs with the day-by-day view.)_
 - [ ] **Flight auto-search:** Travelpayouts Data API (§11) — token in secrets;
       **cache results**; cheapest within the **flight+hotel** allocation.
 - [ ] **Hotel auto-search:** one small-quota free API (pick at build) — **cache**;
