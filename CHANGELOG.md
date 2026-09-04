@@ -6,6 +6,24 @@ step**.
 
 ---
 
+## 2026-09-03 — Per-destination planning; receipt = read-only + Edit/Delete
+
+**What we did**
+- **Plan per destination:** after Start planning, a navigator lets you pick a
+  destination (or **📋 Review**). Selecting one shows **that stop's card**
+  (edit / delete the destination), **that stop's budget**, and an item add scoped
+  to it (Type = Flight/Hotel/Activity/Restaurant; items auto-assigned to the stop
+  — no city picker). **Review** shows the whole trip + **Generate receipt**.
+- **Receipt = read-only + actions:** a finalized trip shows the plan read-only,
+  with **✏️ Edit** (reopens it for planning — continue in the Plan tab) and
+  **🗑 Delete** (confirm/cancel). No more in-place editing of finalized trips.
+- **Leaner backend (no redundancy):** `_item_manager` gained a `fixed_leg_id`
+  (one function for per-destination + read-only views); `_budget_bar` → generic
+  **`_budget_line`** (whole-trip *and* per-stop); `_destinations_editor` → single
+  **`_destination_card`**; removed unused `STEPS`/`STEP_CATEGORIES`.
+- Verified with AppTest: per-destination add assigns to the stop; Review →
+  Generate finalizes; finalized is read-only with Edit; skeleton/Receipts render.
+
 ## 2026-09-03 — Finalized receipts fully editable in place
 
 **What we did**
