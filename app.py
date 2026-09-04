@@ -610,6 +610,10 @@ with plan_tab:
 
 with receipts_tab:
     st.header("Receipts")
+    _active_id = st.session_state.get("active_trip_id")
+    _active = next((t for t in trips if t["id"] == _active_id), None) if _active_id else None
+    if _active is not None:
+        st.info(f"▶️ You're planning **{_active['name']}** — open the **Plan** tab to continue.")
     if not trips:
         st.info("No trips yet. Create one in the Plan tab.")
     else:

@@ -18,6 +18,9 @@ step**.
   editing covers it, no tab hop needed. (Drafts still use the guided steps.)
 - Verified with AppTest: a finalized trip exposes the leg Edit/Delete + item Add;
   the Resume button is gone.
+- **Reminder banner:** while a draft is active (e.g. right after **Resume
+  planning**), Receipts shows "You're planning X — open the Plan tab to continue"
+  (Streamlit can't switch tabs, so this points you there).
 
 ## 2026-09-03 — Application logging (surfaces in Streamlit Cloud logs)
 
