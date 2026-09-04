@@ -76,29 +76,28 @@ def _submit_item_cb(tid: int, categories: list[str], kp: str, fixed_leg_id: int 
     name = g[kp + "name"]
     cost = g[kp + "cost"]
     category = categories[0] if len(categories) == 1 else g[kp + "type"]
-    leg_id = fixed_leg_id if fixed_leg_id is not None else g[kp + "leg"]
     errors = ["Enter a cost."] if cost is None else validate_new_item(name, cost)
     if errors:
         g[kp + "err"] = errors
         return
-    add_item(
-        tid, leg_id, category, name, Decimal(str(cost)), g[kp + "ccy"], int(g[kp + "day"]) or None
-    )
+    add_item(tid, fixed_leg_id, category, name, Decimal(str(cost)), g[kp + "ccy"], g[kp + "date"])
     g[kp + "err"] = []
     g[kp + "name"] = ""
-    g[kp + "cost"] = None
-    g[kp + "day"] = 0
+    g[kp + "cost"] = None  # keep the date so several items can share a day
 
 
-def _item_row(it: dict, home: str, leg_label: dict, show_where: bool = True) -> None:
+def _item_row(
+    it: dict, home: str, leg_label: dict, leg_dates: dict, show_where: bool = True
+) -> None:
     row, edit, remove = st.columns([6, 1, 1])
     icon = CATEGORY_ICON.get(it["category"], "")
     where = f" · {leg_label.get(it['leg_id'], 'General')}" if show_where else ""
-    day = f" · day {it['day']}" if it["day"] else ""
+    when = f" · {it['on_date']}" if it.get("on_date") else ""
     est = " (est.)" if it["category"] == "restaurant" else ""
     ccy = it["currency"] or home
     converted = f" ≈ {_home_amount(it, home)} {home}" if ccy != home else ""
-    row.write(f"{icon} **{it['name']}** — {it['cost']} {ccy}{converted}{est}{where}{day}")
+    row.write(f"{icon} **{it['name']}** — {it['cost']} {ccy}{converted}{est}{where}{when}")
+    lo, hi = leg_dates.get(it["leg_id"], (None, None))
     with edit.popover("✏️"):
         new_cost = st.number_input(
             "Cost", value=float(it["cost"]), min_value=0.0, step=10.0, key=f"icost_{it['id']}"
@@ -109,11 +108,11 @@ def _item_row(it: dict, home: str, leg_label: dict, show_where: bool = True) -> 
             index=CURRENCIES.index(ccy) if ccy in CURRENCIES else 0,
             key=f"iccy_{it['id']}",
         )
-        new_day = st.number_input(
-            "Day (0 = none)", value=int(it["day"] or 0), min_value=0, step=1, key=f"iday_{it['id']}"
+        new_date = st.date_input(
+            "Date", value=it.get("on_date"), min_value=lo, max_value=hi, key=f"idate_{it['id']}"
         )
         if st.button("Save", key=f"isave_{it['id']}"):
-            update_item(it["id"], Decimal(str(new_cost)), new_ccy, int(new_day) or None)
+            update_item(it["id"], Decimal(str(new_cost)), new_ccy, new_date)
             st.rerun()
     if remove.button("✕", key=f"rm_item_{it['id']}"):
         delete_item(it["id"])
@@ -133,6 +132,7 @@ def _item_manager(
     legs = trip["legs"]
     home = trip["home_currency"]
     leg_label = {leg["id"]: leg["city"] for leg in legs}
+    leg_dates = {leg["id"]: (leg["start_date"], leg["end_date"]) for leg in legs}
     items = list_items(tid)
     if fixed_leg_id is not None:
         items = [it for it in items if it["leg_id"] == fixed_leg_id]
@@ -141,7 +141,7 @@ def _item_manager(
 
     if items:
         for it in items:
-            _item_row(it, home, leg_label, show_where=fixed_leg_id is None)
+            _item_row(it, home, leg_label, leg_dates, show_where=fixed_leg_id is None)
     else:
         st.caption("Nothing added yet.")
 
@@ -167,15 +167,8 @@ def _item_manager(
     if len(categories) > 1:
         st.selectbox("Type", categories, format_func=lambda c: CATEGORY_LABEL[c], key=kp + "type")
     st.text_input("Name", key=kp + "name")
-    if fixed_leg_id is None:
-        leg_choices: list[int | None] = [leg["id"] for leg in legs] + [None]
-        st.selectbox(
-            "City",
-            leg_choices,
-            format_func=lambda lid: leg_label.get(lid, "General"),
-            key=kp + "leg",
-        )
-    st.number_input("Day (optional)", min_value=0, step=1, key=kp + "day")
+    lo, hi = leg_dates.get(fixed_leg_id, (None, None))
+    st.date_input("Date (optional)", value=None, min_value=lo, max_value=hi, key=kp + "date")
     st.button(
         "Add", key=kp + "btn", on_click=_submit_item_cb, args=(tid, categories, kp, fixed_leg_id)
     )

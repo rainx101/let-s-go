@@ -274,15 +274,15 @@ def add_item(
     name: str,
     cost: Decimal,
     currency: str,
-    day: int | None,
+    on_date: date | None,
 ) -> int:
     """Insert one planned item (cost in its original `currency`); return its id."""
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO items (trip_id, leg_id, category, name, cost, currency, day) "
+            "INSERT INTO items (trip_id, leg_id, category, name, cost, currency, on_date) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
-            (trip_id, leg_id, category, name.strip(), cost, currency, day),
+            (trip_id, leg_id, category, name.strip(), cost, currency, on_date),
         )
         row = cur.fetchone()
         assert row is not None  # INSERT ... RETURNING always yields a row
@@ -290,26 +290,26 @@ def add_item(
 
 
 def list_items(trip_id: int) -> list[dict]:
-    """All items for a trip, ordered by leg, then day, then position."""
+    """All items for a trip, ordered by leg, then date, then position."""
     conn = get_connection()
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.currency, i.day, i.position "
+            "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.currency, i.on_date, i.position "
             "FROM items i LEFT JOIN legs l ON l.id = i.leg_id "
             "WHERE i.trip_id = %s "
-            "ORDER BY l.position NULLS FIRST, i.day NULLS FIRST, i.position, i.id",
+            "ORDER BY l.position NULLS FIRST, i.on_date NULLS FIRST, i.position, i.id",
             (trip_id,),
         )
         return cur.fetchall()
 
 
-def update_item(item_id: int, cost: Decimal, currency: str, day: int | None) -> None:
-    """Edit an item's cost, currency, and day."""
+def update_item(item_id: int, cost: Decimal, currency: str, on_date: date | None) -> None:
+    """Edit an item's cost, currency, and date."""
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE items SET cost = %s, currency = %s, day = %s WHERE id = %s",
-            (cost, currency, day, item_id),
+            "UPDATE items SET cost = %s, currency = %s, on_date = %s WHERE id = %s",
+            (cost, currency, on_date, item_id),
         )
 
 
