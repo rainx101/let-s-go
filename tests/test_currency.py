@@ -29,6 +29,8 @@ def _fake_payload() -> dict:
             "TWD": 32,
             "KRW": 1300,
             "THB": 35,
+            "CNY": 7.1,
+            "IDR": 16400,
             "XYZ": 999,  # extra currency we don't support — ignored
         },
     }
