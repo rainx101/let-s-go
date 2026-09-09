@@ -50,7 +50,7 @@ with st.sidebar:
     if health_check():
         st.success("Neon connected", icon="✅")
 
-CURRENCIES = ["USD", "EUR", "JPY", "GBP", "AUD", "CAD", "TWD", "KRW", "THB"]
+CURRENCIES = ["USD", "EUR", "JPY", "GBP", "AUD", "CAD", "TWD", "KRW", "THB", "CNY", "IDR"]
 CATEGORY_ICON = {"flight": "✈️", "hotel": "🏨", "spot": "📍", "restaurant": "🍽️"}
 CATEGORY_LABEL = {
     "spot": "Activity",

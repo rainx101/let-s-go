@@ -27,6 +27,8 @@ RATES: dict[str, Decimal] = {
     "TWD": Decimal("0.031"),
     "KRW": Decimal("0.00075"),
     "THB": Decimal("0.028"),
+    "CNY": Decimal("0.14"),
+    "IDR": Decimal("0.000061"),
 }
 
 
@@ -52,6 +54,8 @@ _COUNTRY_CURRENCY: dict[str, str] = {
     "korea": "KRW",
     "south korea": "KRW",
     "thailand": "THB",
+    "china": "CNY",
+    "indonesia": "IDR",
     "france": "EUR",
     "germany": "EUR",
     "italy": "EUR",
