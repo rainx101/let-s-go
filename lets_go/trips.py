@@ -214,12 +214,13 @@ def set_trip_status(trip_id: int, status: str) -> None:
     logger.info("Trip %s status -> %s", trip_id, status)
 
 
-def set_flight_hotel_budget(trip_id: int, amount: Decimal | None) -> None:
-    """Set (or clear) the waterfall's flight+hotel allocation (PRD §6)."""
+def set_leg_flight_hotel_budget(leg_id: int, amount: Decimal | None) -> None:
+    """Set (or clear) a destination's flight+hotel budget; None = default to half
+    the city's budget (PRD §6, per-city waterfall)."""
     conn = get_connection()
     with conn.cursor() as cur:
-        cur.execute("UPDATE trips SET flight_hotel_budget = %s WHERE id = %s", (amount, trip_id))
-    logger.info("Trip %s flight+hotel budget -> %s", trip_id, amount)
+        cur.execute("UPDATE legs SET flight_hotel_budget = %s WHERE id = %s", (amount, leg_id))
+    logger.info("Leg %s flight+hotel budget -> %s", leg_id, amount)
 
 
 def delete_trip(trip_id: int) -> None:
@@ -236,13 +237,13 @@ def list_trips() -> list[dict]:
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             "SELECT id, name, home_currency, budget_cap, trip_type, status, "
-            "flight_hotel_budget, created_at FROM trips ORDER BY created_at DESC"
+            "created_at FROM trips ORDER BY created_at DESC"
         )
         trips = cur.fetchall()
         cur.execute(
             "SELECT id, trip_id, city, country, from_city, from_country, start_date, end_date, "
-            "need_flight, need_hotel, round_trip, budget_cap, position FROM legs "
-            "ORDER BY position"
+            "need_flight, need_hotel, round_trip, budget_cap, flight_hotel_budget, position "
+            "FROM legs ORDER BY position"
         )
         legs = cur.fetchall()
 

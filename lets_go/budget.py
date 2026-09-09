@@ -36,6 +36,12 @@ def budget_progress(cap: float, spent: float) -> float:
     return min(spent / cap, 1.0)
 
 
+def flight_hotel_default(city_budget: float) -> float:
+    """A city's default flight+hotel budget = half its budget (PRD §6). The user
+    can override it; the Phase 3 hotel search obeys the result as its ceiling."""
+    return city_budget / 2
+
+
 def waterfall_budget(
     cap: float, activities_spent: float, flight_hotel_alloc: float
 ) -> WaterfallBudget:
