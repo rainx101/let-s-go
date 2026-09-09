@@ -328,13 +328,31 @@ def _stop_budget(trip: dict, leg: dict) -> Decimal | None:
     return budgets[idx]
 
 
+def _budget_summary(trip: dict, home: str) -> None:
+    """Whole-trip budget = flight + hotel spent vs the flight+hotel budget, with
+    activities + food shown as extras on top (PRD §6). Used by Review and Receipts."""
+    items = list_items(trip["id"])
+    fh_spent = _stage_spent(items, home, {"flight", "hotel"})
+    extras = _stage_spent(items, home, {"spot", "restaurant"})
+    total_budget = sum(float(_stop_budget(trip, leg) or 0) for leg in trip["legs"])
+    _budget_line(
+        fh_spent,
+        Decimal(str(total_budget)) if total_budget > 0 else None,
+        home,
+        "✈️🏨 Flight + hotel",
+    )
+    st.caption(
+        f"➕ Extras (activities + food): {extras:,.2f} {home}  ·  "
+        f"Trip total {fh_spent + extras:,.2f} {home}"
+    )
+
+
 def _render_receipt(trip: dict) -> None:
     """Read-only view of a finalized trip — the plan + budget. Editing happens in
     the Plan tab (see the finalized section's Edit action)."""
     home = trip["home_currency"]
     _legs_summary(trip["legs"])
-    spent = total_spent([float(_home_amount(it, home)) for it in list_items(trip["id"])])
-    _budget_line(spent, trip["budget_cap"], home, "Trip")
+    _budget_summary(trip, home)
     _item_manager(trip, show_add=False, tag=f"view{trip['id']}")
 
 
@@ -627,20 +645,7 @@ def _render_review(trip: dict) -> None:
     tid = trip["id"]
     home = trip["home_currency"]
     st.subheader("📋 Review & finalize")
-    items = list_items(tid)
-    fh_spent = _stage_spent(items, home, {"flight", "hotel"})
-    extras = _stage_spent(items, home, {"spot", "restaurant"})
-    total_budget = sum(float(_stop_budget(trip, leg) or 0) for leg in trip["legs"])
-    _budget_line(
-        fh_spent,
-        Decimal(str(total_budget)) if total_budget > 0 else None,
-        home,
-        "✈️🏨 Flight + hotel",
-    )
-    st.caption(
-        f"➕ Extras (activities + food): {extras:,.2f} {home}  ·  "
-        f"Trip total {fh_spent + extras:,.2f} {home}"
-    )
+    _budget_summary(trip, home)
     _legs_summary(trip["legs"])
     _item_manager(trip, show_add=False, tag="rev")
     st.divider()

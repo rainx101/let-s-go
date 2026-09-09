@@ -19,8 +19,9 @@ step**.
   Disney: no flight → hotel gets it all).
 - Pure `flight_hotel_ceilings(budget, flight_cap, hotel_cap, need_flight,
   need_hotel)` replaces `waterfall_budget`/`flight_hotel_default`. The city budget
-  bar shows the flight/hotel ceilings + the extras total; Review splits flight+hotel
-  vs extras.
+  bar shows the flight/hotel ceilings + the extras total. A shared
+  `_budget_summary` gives **both Review and the finalized Receipt** the same
+  flight+hotel-vs-extras split (the receipt no longer uses the old whole-total).
 - Data: `legs.flight_cap` + `legs.hotel_cap` (idempotent, nullable) + `set_leg_cap`
   (whitelisted field). `legs.flight_hotel_budget` now dormant. Setup labels the
   budget "Flight + hotel budget".
