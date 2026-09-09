@@ -63,21 +63,25 @@ APIs yet. (Reorganized 2026-09-03 to match the guided flow, PRD §9.)
 Goal: a clear draft→finalize flow (PRD §9, as built), still **manual entry** —
 search is layered on in Phase 3. All create/edit lives in the **Plan** tab.
 
-- [x] **Per-city step wizard** (revised 2026-09-08): plan **city by city**; within
-      a city a **Next/Back** wizard steps **Activities → Flight/Hotel → Restaurants**
-      (waterfall bar on top, destination time frame shown), then **Review**. Items
-      auto-assigned to the stop; **cost optional (TBD)**; day optional; any
-      currency → home. (Replaced the per-destination radio navigator.)
+- [x] **Per-city step wizard** (revised 2026-09-08b): plan **city by city**; within
+      a city a **Next/Back** wizard steps **Flight → Hotel → Activities → Food**
+      (flight/hotel shown only when the stop needs them; flight+hotel budget bar on
+      top; destination time frame shown), then **Review**. Items auto-assigned to
+      the stop; **cost optional (TBD)**; day optional; any currency → home.
+      (Replaced the per-destination radio navigator.)
 - [x] **Draft persistence:** **Start planning** saves a **draft**; **Review** ends
       with **Save as draft** or **Finalize** (PRD §9).
 - [x] **Editing in the Plan tab:** **Drafts** (Edit / Delete) and **Edit a
       finalized trip** (pick → reopens for editing). No tab-hopping.
 - [x] **Receipts = finalized only:** read-only plan + budget; **Delete** (confirm).
-- [x] **Per-stop budget shown** (own cap, else even share) — plan against each stop.
-- [x] **Budget refinement:** the activities-first **waterfall** header
-      (activities off the top → chosen flight+hotel allocation → restaurants get
-      the remainder) shown at the whole-trip level while planning (PRD §6). The
-      even-split per-stop budget stays as the geographic refinement.
+- [x] **Budget = flight + hotel; activities & food are extras** (revised
+      2026-09-08b, PRD §6): a stop's budget is its **flight + hotel budget** (own
+      cap, else even share of the trip's flight+hotel budget). **Flight and hotel
+      are separate steps shown per need**, each with an optional cap — else the
+      budget **splits ½/½**, and when only one is needed it takes the whole budget.
+      **Activities and food are extras** on top, tracked but **not capped**. The
+      per-item ceilings are the ceilings the Phase 3 search obeys. (Superseded the
+      earlier activities-first waterfall.)
 - [ ] **Hand-type the real amount paid** for an accurate budget — item cost is
       already editable; consider an explicit estimate-vs-actual later (PRD §7).
 
