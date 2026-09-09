@@ -73,9 +73,10 @@ search is layered on in Phase 3. All create/edit lives in the **Plan** tab.
       finalized trip** (pick → reopens for editing). No tab-hopping.
 - [x] **Receipts = finalized only:** read-only plan + budget; **Delete** (confirm).
 - [x] **Per-stop budget shown** (own cap, else even share) — plan against each stop.
-- [ ] **Budget refinement (optional):** the activities-first **waterfall**
-      (activities → chosen flight+hotel → restaurants) as a richer alternative to
-      the even-split per-stop budget (PRD §6). _Deferred; per-stop budget works._
+- [x] **Budget refinement:** the activities-first **waterfall** header
+      (activities off the top → chosen flight+hotel allocation → restaurants get
+      the remainder) shown at the whole-trip level while planning (PRD §6). The
+      even-split per-stop budget stays as the geographic refinement.
 - [ ] **Hand-type the real amount paid** for an accurate budget — item cost is
       already editable; consider an explicit estimate-vs-actual later (PRD §7).
 
@@ -84,7 +85,8 @@ search is layered on in Phase 3. All create/edit lives in the **Plan** tab.
 Goal: layer real recommendations + distance on top of the working guided flow.
 Every auto-value must remain **user-editable**; manual entry always works.
 
-- [ ] **Currency conversion:** wire a free rate source (choose at build, PRD §10).
+- [x] **Currency conversion:** live rates via **open.er-api.com** (free, no key,
+      base USD); static `RATES` fallback + 1h cache (PRD §10/§11).
 - [ ] **Geocoding:** locate activities/restaurants by name via **OpenStreetMap**
       (respect ~1 req/sec + user-agent).
 - [ ] **Distance ordering:** order each day's items by distance; **place
@@ -131,8 +133,9 @@ Goal: the "remember what I liked" value.
 
 - [ ] Exact **hotel** API choice (small free-quota option).
 - [ ] Free source for **per-city average meal cost**.
-- [ ] Free source for **currency conversion** rates.
+- [x] Free source for **currency conversion** rates — **open.er-api.com**
+      (keyless, base USD; static fallback).
 - [ ] Any free/affordable source for **activity prices** — else hand-type stays
       the baseline (PRD §11).
 
-_Last updated: 2026-09-03_
+_Last updated: 2026-09-08_

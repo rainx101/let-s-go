@@ -2,6 +2,16 @@
 easy to test. All amounts are assumed to already be in the trip's home currency
 (PRD: single cap, whole trip, one home currency)."""
 
+from typing import NamedTuple
+
+
+class WaterfallBudget(NamedTuple):
+    """The three stage figures of the waterfall (PRD §6)."""
+
+    after_activities: float  # cap - activities; the true (maybe negative) overage
+    flight_hotel_alloc: float  # chosen amount, clamped to what's left after activities
+    food_remainder: float  # what's left for food after the flight+hotel allocation
+
 
 def total_spent(costs: list[float]) -> float:
     """Sum of all item costs in the home currency."""
@@ -24,3 +34,15 @@ def budget_progress(cap: float, spent: float) -> float:
     if cap <= 0:
         return 1.0 if spent > 0 else 0.0
     return min(spent / cap, 1.0)
+
+
+def waterfall_budget(
+    cap: float, activities_spent: float, flight_hotel_alloc: float
+) -> WaterfallBudget:
+    """Split the cap in flow order (PRD §6): activities off the top, then the
+    chosen flight+hotel allocation, then food gets the remainder. The allocation
+    is clamped to what's actually left after activities."""
+    after_activities = cap - activities_spent
+    usable = max(after_activities, 0.0)
+    alloc = min(max(flight_hotel_alloc, 0.0), usable)
+    return WaterfallBudget(after_activities, alloc, usable - alloc)

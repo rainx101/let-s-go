@@ -6,8 +6,14 @@ from decimal import Decimal
 import streamlit as st
 
 from lets_go.auth import require_login
-from lets_go.budget import budget_progress, is_over_budget, remaining_budget, total_spent
-from lets_go.currency import convert, currency_for_country
+from lets_go.budget import (
+    budget_progress,
+    is_over_budget,
+    remaining_budget,
+    total_spent,
+    waterfall_budget,
+)
+from lets_go.currency import convert, currency_for_country, live_rates_or_static
 from lets_go.db import health_check, init_db
 from lets_go.trips import (
     DraftLeg,
@@ -23,6 +29,7 @@ from lets_go.trips import (
     list_items,
     list_trips,
     normalize_place,
+    set_flight_hotel_budget,
     set_trip_status,
     update_item,
     update_leg,
@@ -64,8 +71,14 @@ def _range_bounds(legs: list[dict]) -> tuple[object, object]:
     return (min(starts) if starts else None, max(ends) if ends else None)
 
 
+@st.cache_data(ttl=3600)
+def _rates() -> dict[str, Decimal]:
+    """Live USD-per-unit rates (cached 1h), or the static fallback table."""
+    return live_rates_or_static()
+
+
 def _home_amount(item: dict, home: str) -> Decimal:
-    return convert(item["cost"], item["currency"] or home, home)
+    return convert(item["cost"], item["currency"] or home, home, rates=_rates())
 
 
 # --- items (shared by the guided steps and the finalized receipt) ------------
@@ -163,7 +176,7 @@ def _item_manager(
         key=kp + "ccy",
     )
     if item_cost and item_ccy != home:
-        st.caption(f"≈ {convert(Decimal(str(item_cost)), item_ccy, home)} {home}")
+        st.caption(f"≈ {convert(Decimal(str(item_cost)), item_ccy, home, rates=_rates())} {home}")
     if len(categories) > 1:
         st.selectbox("Type", categories, format_func=lambda c: CATEGORY_LABEL[c], key=kp + "type")
     st.text_input("Name", key=kp + "name")
@@ -201,6 +214,54 @@ def _budget_line(spent: float, cap: Decimal | None, home: str, label: str = "Spe
             st.caption(msg)
     else:
         st.caption(f"{label}: {spent:,.2f} {home}")
+
+
+def _save_fh_budget_cb(tid: int) -> None:
+    raw = st.session_state.get(f"fhb_{tid}")
+    set_flight_hotel_budget(tid, Decimal(str(raw)) if raw is not None else None)
+
+
+def _stage_spent(items: list[dict], home: str, categories: set[str]) -> float:
+    return total_spent(
+        [float(_home_amount(it, home)) for it in items if it["category"] in categories]
+    )
+
+
+def _waterfall_header(trip: dict, items: list[dict], home: str) -> None:
+    """Whole-trip budget shown in flow order (PRD §6): activities off the top,
+    then a chosen flight+hotel allocation, then food gets the remainder. Falls
+    back to a single total line when no cap is set (nothing to divide)."""
+    tid = trip["id"]
+    cap = trip["budget_cap"]
+    if cap is None or float(cap) <= 0:
+        _budget_line(_stage_spent(items, home, set(ALL_CATEGORIES)), cap, home, "Trip total")
+        return
+
+    activities = _stage_spent(items, home, {"spot"})
+    fh_spent = _stage_spent(items, home, {"flight", "hotel"})
+    food_spent = _stage_spent(items, home, {"restaurant"})
+
+    after = float(cap) - activities
+    stored_fh = trip["flight_hotel_budget"]
+    alloc_val = st.number_input(
+        f"Flight + hotel budget — {after:,.0f} {home} left after activities",
+        min_value=0.0,
+        value=float(stored_fh) if stored_fh is not None else None,
+        placeholder="e.g. 900",
+        key=f"fhb_{tid}",
+        on_change=_save_fh_budget_cb,
+        args=(tid,),
+    )
+    wb = waterfall_budget(float(cap), activities, alloc_val or 0.0)
+
+    fh_cap = Decimal(str(alloc_val)) if alloc_val is not None else None
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        _budget_line(activities, cap, home, "🎯 Activities")
+    with c2:
+        _budget_line(fh_spent, fh_cap, home, "✈️🏨 Flight + hotel")
+    with c3:
+        _budget_line(food_spent, Decimal(str(wb.food_remainder)), home, "🍽️ Food")
 
 
 def _stop_budget(trip: dict, leg: dict) -> Decimal | None:
@@ -399,12 +460,7 @@ def _render_steps(trip: dict) -> None:
     if exit_col.button("Exit", key="exit_planning"):
         st.session_state.active_trip_id = None
         st.rerun()
-    _budget_line(
-        total_spent([float(_home_amount(it, home)) for it in items]),
-        trip["budget_cap"],
-        home,
-        "Trip total",
-    )
+    _waterfall_header(trip, items, home)
 
     # Navigator: pick a destination to plan, or Review the whole trip.
     options: list[object] = [leg["id"] for leg in legs] + ["review"]
@@ -599,7 +655,8 @@ def _render_skeleton() -> None:
             if budget is not None:
                 local_ccy = currency_for_country(leg.country, home_currency)
                 if local_ccy != home_currency:
-                    bits.append(f"≈ {convert(budget, home_currency, local_ccy):,.0f} {local_ccy}")
+                    conv = convert(budget, home_currency, local_ccy, rates=_rates())
+                    bits.append(f"≈ {conv:,.0f} {local_ccy}")
                 else:
                     bits.append(f"{budget:,.0f} {home_currency}")
             if bits:
