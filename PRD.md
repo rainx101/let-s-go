@@ -139,15 +139,16 @@ so they resurface next time with a "liked before" mark; restaurants are rated
 ## 7. Core concepts / data model (draft — confirm at build)
 
 - **Trip** — name, **type** (round-trip / one-way), one or more **destinations/
-  legs** each with a **date range**, an overall **budget cap**, and a **status**
+  legs** each with a **date range**, an overall **flight + hotel budget**, and a
+  **status**
   (**draft** while planning → **final** on save). Flags for whether flight/hotel
   are needed. (Revised 2026-09-03.)
 - **Destination (leg)** — a **place, not only a city**: a free-text name that
   Phase 3 **geocodes to a point** (a POI like "Disneyland" is valid). That point
   is the stop's **anchor** for hotel search and distance (§6, revised 2026-09-08).
-- **Activity** — a fixed-price thing to do; assigned to a day (day optional until
-  the receipt recommends one); **searched when possible, else hand-typed**; the
-  first budget category in the waterfall (§6).
+- **Activity** — a thing to do; assigned to a day (day optional until the receipt
+  recommends one); **searched when possible, else hand-typed**; an **extra** on top
+  of the flight+hotel budget, not capped (§6, revised 2026-09-08b).
 - **Item cost** — every priced item keeps an **editable amount**; an auto/searched
   value is an **estimate** the user can replace with the **real amount paid** so
   the receipt budget is accurate (§9 step 6).
@@ -191,9 +192,10 @@ Sources:
 A trip is a **draft** while being built and **finalized** when done. All
 creating/editing happens in the **Plan** tab; **Receipts** holds finalized trips.
 
-1. **Plan a trip (skeleton).** Name, home currency, overall **budget cap** (required),
-   then add **destinations** — each a **From → To** (with a per-card **round-trip /
-   one-way** toggle), **required non-overlapping dates**, an optional **per-stop
+1. **Plan a trip (skeleton).** Name, home currency, overall **flight + hotel
+   budget** (required; §6 — activities & food are extras on top), then add
+   **destinations** — each a **From → To** (with a per-card **round-trip / one-way**
+   toggle), **required non-overlapping dates**, an optional **per-stop flight+hotel
    budget**, and need-flight/hotel flags. Destinations are editable, and the next
    card's "From" auto-fills from where the last leg leaves you. **Start planning**
    saves the trip as a **draft** and opens the planner.
