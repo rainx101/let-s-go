@@ -18,6 +18,7 @@ from lets_go.db import health_check, init_db
 from lets_go.trips import (
     DraftLeg,
     add_item,
+    add_leg,
     create_trip,
     dates_overlap,
     delete_item,
@@ -33,6 +34,7 @@ from lets_go.trips import (
     set_trip_status,
     update_item,
     update_leg,
+    update_trip,
     validate_budget_caps,
     validate_new_item,
     validate_new_trip,
@@ -60,6 +62,19 @@ CATEGORY_LABEL = {
 }
 ALL_CATEGORIES = ["spot", "flight", "hotel", "restaurant"]
 
+# The per-city wizard: (title, categories added in this step, hint). Activities
+# come first — they anchor the waterfall budget (PRD §6).
+WIZARD_STEPS: list[tuple[str, list[str], str]] = [
+    (
+        "Activities",
+        ["spot"],
+        "Optional — type a place even with no price yet. What you spend here is "
+        "the 🎯 Activities budget up top.",
+    ),
+    ("Flight & hotel", ["flight", "hotel"], "Planned against what's left after activities."),
+    ("Restaurants", ["restaurant"], "Add by hand with an estimated cost (marked est.)."),
+]
+
 plan_tab, receipts_tab, restaurants_tab = st.tabs(["Plan", "Receipts", "Restaurants by city"])
 
 trips = list_trips()
@@ -78,6 +93,8 @@ def _rates() -> dict[str, Decimal]:
 
 
 def _home_amount(item: dict, home: str) -> Decimal:
+    if item["cost"] is None:  # TBD — counts as 0 until a price is filled in
+        return Decimal(0)
     return convert(item["cost"], item["currency"] or home, home, rates=_rates())
 
 
@@ -87,13 +104,14 @@ def _home_amount(item: dict, home: str) -> Decimal:
 def _submit_item_cb(tid: int, categories: list[str], kp: str, fixed_leg_id: int | None) -> None:
     g = st.session_state
     name = g[kp + "name"]
-    cost = g[kp + "cost"]
+    cost = g[kp + "cost"]  # None = TBD (a place with no price yet)
     category = categories[0] if len(categories) == 1 else g[kp + "type"]
-    errors = ["Enter a cost."] if cost is None else validate_new_item(name, cost)
+    errors = validate_new_item(name, cost if cost is not None else 0)
     if errors:
         g[kp + "err"] = errors
         return
-    add_item(tid, fixed_leg_id, category, name, Decimal(str(cost)), g[kp + "ccy"], g[kp + "date"])
+    amount = Decimal(str(cost)) if cost is not None else None
+    add_item(tid, fixed_leg_id, category, name, amount, g[kp + "ccy"], g[kp + "date"])
     g[kp + "err"] = []
     g[kp + "name"] = ""
     g[kp + "cost"] = None  # keep the date so several items can share a day
@@ -108,12 +126,21 @@ def _item_row(
     when = f" · {it['on_date']}" if it.get("on_date") else ""
     est = " (est.)" if it["category"] == "restaurant" else ""
     ccy = it["currency"] or home
-    converted = f" ≈ {_home_amount(it, home)} {home}" if ccy != home else ""
-    row.write(f"{icon} **{it['name']}** — {it['cost']} {ccy}{converted}{est}{where}{when}")
+    if it["cost"] is None:
+        price = "_TBD_"
+    else:
+        converted = f" ≈ {_home_amount(it, home)} {home}" if ccy != home else ""
+        price = f"{it['cost']} {ccy}{converted}"
+    row.write(f"{icon} **{it['name']}** — {price}{est}{where}{when}")
     lo, hi = leg_dates.get(it["leg_id"], (None, None))
     with edit.popover("✏️"):
         new_cost = st.number_input(
-            "Cost", value=float(it["cost"]), min_value=0.0, step=10.0, key=f"icost_{it['id']}"
+            "Cost (blank = TBD)",
+            value=float(it["cost"]) if it["cost"] is not None else None,
+            min_value=0.0,
+            step=10.0,
+            placeholder="e.g. 40",
+            key=f"icost_{it['id']}",
         )
         new_ccy = st.selectbox(
             "Currency",
@@ -125,7 +152,8 @@ def _item_row(
             "Date", value=it.get("on_date"), min_value=lo, max_value=hi, key=f"idate_{it['id']}"
         )
         if st.button("Save", key=f"isave_{it['id']}"):
-            update_item(it["id"], Decimal(str(new_cost)), new_ccy, new_date)
+            amount = Decimal(str(new_cost)) if new_cost is not None else None
+            update_item(it["id"], amount, new_ccy, new_date)
             st.rerun()
     if remove.button("✕", key=f"rm_item_{it['id']}"):
         delete_item(it["id"])
@@ -149,8 +177,7 @@ def _item_manager(
     items = list_items(tid)
     if fixed_leg_id is not None:
         items = [it for it in items if it["leg_id"] == fixed_leg_id]
-    else:
-        items = [it for it in items if it["category"] in categories]
+    items = [it for it in items if it["category"] in categories]
 
     if items:
         for it in items:
@@ -167,7 +194,7 @@ def _item_manager(
     st.markdown("**Add**")
     pc1, pc2 = st.columns([3, 1])
     item_cost = pc1.number_input(
-        "Cost", min_value=0.0, step=10.0, placeholder="e.g. 40", key=kp + "cost"
+        "Cost (blank = TBD)", min_value=0.0, step=10.0, placeholder="e.g. 40", key=kp + "cost"
     )
     item_ccy = pc2.selectbox(
         "Currency",
@@ -391,6 +418,25 @@ def _seed_leg_fields(prefix: str, leg: DraftLeg) -> None:
     g[f"{prefix}cap"] = float(leg.budget_cap) if leg.budget_cap else None
 
 
+def _leg_header(leg: dict) -> None:
+    """Read-only destination line: origin ⇄/→ city, country, and dates."""
+    arrow = "⇄" if leg.get("round_trip") else "→"
+    origin = f"{leg['from_city']} {arrow} " if leg.get("from_city") else ""
+    place = f"{origin}**{leg['city']}**" + (f", {leg['country']}" if leg["country"] else "")
+    st.markdown(place)
+    st.caption(f"{leg['start_date'] or '?'} → {leg['end_date'] or '?'}")
+
+
+def _reset_plan_ui() -> None:
+    """Clear transient per-leg / setup widget state so nothing (an open edit form,
+    a stale destination pick) carries over between planning sessions."""
+    g = st.session_state
+    for k in [k for k in g if k.startswith(("editleg_", "delleg_", "legerr_", "su_", "suadd_"))]:
+        del g[k]
+    for k in ("plan_dest", "plan_step", "plan_review"):
+        g.pop(k, None)
+
+
 def _destination_card(trip: dict, leg: dict) -> None:
     """One destination's header with in-place Edit / Delete (with confirm)."""
     legs = trip["legs"]
@@ -421,11 +467,7 @@ def _destination_card(trip: dict, leg: dict) -> None:
             st.session_state[f"legerr_{lid}"] = []
             st.rerun()
         return
-    arrow = "⇄" if leg.get("round_trip") else "→"
-    origin = f"{leg['from_city']} {arrow} " if leg.get("from_city") else ""
-    place = f"{origin}**{leg['city']}**" + (f", {leg['country']}" if leg["country"] else "")
-    st.markdown(place)
-    st.caption(f"{leg['start_date'] or '?'} → {leg['end_date'] or '?'}")
+    _leg_header(leg)
     c1, c2 = st.columns(2)
     if c1.button("✏️ Edit destination", key=f"edleg_{lid}"):
         _seed_leg_fields(prefix, _draftleg_from_row(leg))
@@ -446,61 +488,227 @@ def _destination_card(trip: dict, leg: dict) -> None:
         st.rerun()
 
 
+# --- trip setup (edit name/budget/destinations before planning) --------------
+
+
+def _save_setup_details(trip: dict) -> bool:
+    """Persist the setup name / currency / budget; return False (with errors set)
+    when the name is blank or the budget cap is missing."""
+    tid = trip["id"]
+    name = st.session_state.get(f"su_name_{tid}", trip["name"])
+    ccy = st.session_state.get(f"su_ccy_{tid}", trip["home_currency"])
+    raw = st.session_state.get(f"su_budget_{tid}")
+    cap = Decimal(str(raw)) if raw else None
+    errors: list[str] = []
+    if not name.strip():
+        errors.append("Trip needs a name.")
+    if cap is None:
+        errors.append("Set a budget cap for the trip.")
+    if errors:
+        st.session_state["su_errors"] = errors
+        return False
+    update_trip(tid, name, ccy, cap)
+    st.session_state["su_errors"] = []
+    return True
+
+
+def _render_trip_setup(trip: dict) -> None:
+    """Skeleton-style view for an existing trip: edit its name, currency, budget,
+    and destinations, then Start planning to enter the per-destination steps."""
+    tid = trip["id"]
+    st.session_state.setdefault(f"su_name_{tid}", trip["name"])
+    st.session_state.setdefault(f"su_ccy_{tid}", trip["home_currency"])
+    st.session_state.setdefault(
+        f"su_budget_{tid}", float(trip["budget_cap"]) if trip["budget_cap"] is not None else None
+    )
+
+    top, exit_col = st.columns([4, 1])
+    top.subheader(f"Editing: {trip['name']}")
+    if exit_col.button("Exit", key="exit_setup"):
+        _save_setup_details(trip)  # persist valid details; leave regardless
+        _reset_plan_ui()
+        st.session_state.active_trip_id = None
+        st.rerun()
+
+    st.text_input("Trip name", key=f"su_name_{tid}")
+    c1, c2 = st.columns(2)
+    c1.selectbox("Home currency", CURRENCIES, key=f"su_ccy_{tid}")
+    c2.number_input(
+        "Budget cap", min_value=0.0, step=100.0, placeholder="e.g. 2000", key=f"su_budget_{tid}"
+    )
+
+    st.subheader("Destinations")
+    for leg in trip["legs"]:
+        with st.container(border=True):
+            _destination_card(trip, leg)
+
+    if st.session_state.get(f"su_adding_{tid}"):
+        with st.container(border=True):
+            st.markdown("**Add destination**")
+            _leg_field_widgets("suadd_")
+            for e in st.session_state.get("suadd_err", []):
+                st.warning(e)
+            b1, b2 = st.columns(2)
+            if b1.button("Save destination", type="primary", key="suadd_save"):
+                newleg = _draftleg_from("suadd_")
+                others = [_draftleg_from_row(o) for o in trip["legs"]]
+                problems = validate_new_trip("_", [newleg])
+                if any(dates_overlap(newleg, o) for o in others):
+                    problems.append("Dates overlap with another destination.")
+                if problems:
+                    st.session_state["suadd_err"] = problems
+                else:
+                    add_leg(tid, newleg)
+                    st.session_state[f"su_adding_{tid}"] = False
+                    st.session_state["suadd_err"] = []
+                st.rerun()
+            if b2.button("Cancel", key="suadd_cancel"):
+                st.session_state[f"su_adding_{tid}"] = False
+                st.session_state["suadd_err"] = []
+                st.rerun()
+    elif st.button("➕ Add destination", key="su_addbtn"):
+        for k, v in _leg_field_defaults("suadd_").items():
+            st.session_state[k] = v
+        st.session_state[f"su_adding_{tid}"] = True
+        st.rerun()
+
+    for err in st.session_state.get("su_errors", []):
+        st.error(err)
+    if st.button("▶ Start planning", type="primary", key="su_start"):
+        if trip["legs"] and _save_setup_details(trip):
+            st.session_state.plan_phase = "steps"
+            st.rerun()
+        elif not trip["legs"]:
+            st.session_state["su_errors"] = ["Add at least one destination."]
+            st.rerun()
+
+
 # --- guided planning steps for a draft ---------------------------------------
 
 
-def _render_steps(trip: dict) -> None:
+def _leg_span(leg: dict) -> str:
+    return f"{leg['start_date'] or '?'} → {leg['end_date'] or '?'}"
+
+
+def _render_review(trip: dict) -> None:
     tid = trip["id"]
+    st.subheader("📋 Review & finalize")
+    _legs_summary(trip["legs"])
+    _item_manager(trip, show_add=False, tag="rev")
+    st.divider()
+    keep, sd, fin = st.columns([1.2, 1, 1])
+    if keep.button("◀ Keep editing", key="rev_back"):
+        st.session_state["plan_review"] = False
+        st.rerun()
+    if sd.button("💾 Save as draft", key="save_draft"):
+        set_trip_status(tid, "draft")
+        _reset_plan_ui()
+        st.session_state.active_trip_id = None
+        st.session_state.plan_msg = f"Saved '{trip['name']}' as a draft."
+        st.rerun()
+    if fin.button("✅ Finalize", type="primary", key="finalize"):
+        set_trip_status(tid, "final")
+        _reset_plan_ui()
+        st.session_state.active_trip_id = None
+        st.session_state.plan_msg = f"Finalized '{trip['name']}' — see the Receipts tab."
+        st.rerun()
+
+
+def _render_steps(trip: dict) -> None:
     legs = trip["legs"]
     home = trip["home_currency"]
-    items = list_items(tid)
+    items = list_items(trip["id"])
 
-    top, exit_col = st.columns([4, 1])
+    top, back_col, exit_col = st.columns([3, 1, 1])
     top.subheader(f"Planning: {trip['name']}")
+    if back_col.button("◀ Setup", key="back_setup"):
+        _reset_plan_ui()
+        st.session_state.plan_phase = "setup"
+        st.rerun()
     if exit_col.button("Exit", key="exit_planning"):
+        _reset_plan_ui()
         st.session_state.active_trip_id = None
         st.rerun()
     _waterfall_header(trip, items, home)
 
-    # Navigator: pick a destination to plan, or Review the whole trip.
-    options: list[object] = [leg["id"] for leg in legs] + ["review"]
-    if st.session_state.get("plan_dest") not in options:
-        st.session_state["plan_dest"] = options[0]
-    dest_labels = {leg["id"]: leg["city"] for leg in legs}
-    choice = st.radio(
-        "Destination",
-        options,
-        horizontal=True,
-        format_func=lambda o: "📋 Review" if o == "review" else dest_labels[o],
-        key="plan_dest",
-        label_visibility="collapsed",
-    )
-    st.divider()
-
-    if choice == "review":
-        _legs_summary(legs)
-        _item_manager(trip, show_add=False, tag="rev")
-        sd, fin = st.columns(2)
-        if sd.button("💾 Save as draft", key="save_draft"):
-            set_trip_status(tid, "draft")
-            st.session_state.active_trip_id = None
-            st.session_state.plan_msg = f"Saved '{trip['name']}' as a draft."
-            st.rerun()
-        if fin.button("✅ Finalize", type="primary", key="finalize"):
-            set_trip_status(tid, "final")
-            st.session_state.active_trip_id = None
-            st.session_state.plan_msg = f"Finalized '{trip['name']}' — see the Receipts tab."
-            st.rerun()
+    if st.session_state.get("plan_review"):
+        _render_review(trip)
         return
 
-    leg = next(leg_ for leg_ in legs if leg_["id"] == choice)
-    with st.container(border=True):
-        _destination_card(trip, leg)
+    # Plan city by city; within a city, step Activities → Flight/hotel → Restaurants.
+    ids = [leg["id"] for leg in legs]
+    if st.session_state.get("plan_dest") not in ids:
+        st.session_state["plan_dest"] = ids[0]
+    st.session_state.setdefault("plan_step", 0)
+
+    def _reset_step() -> None:
+        st.session_state["plan_step"] = 0
+
+    st.radio(
+        "City",
+        ids,
+        horizontal=True,
+        format_func=lambda lid: next(
+            f"{leg_['city']} · {_leg_span(leg_)}" for leg_ in legs if leg_["id"] == lid
+        ),
+        key="plan_dest",
+        on_change=_reset_step,
+        label_visibility="collapsed",
+    )
+    leg = next(leg_ for leg_ in legs if leg_["id"] == st.session_state["plan_dest"])
+    i = ids.index(leg["id"])
+    step = st.session_state["plan_step"]
+
+    def _go_next() -> None:
+        s, idx = st.session_state["plan_step"], ids.index(st.session_state["plan_dest"])
+        if s < 2:
+            st.session_state["plan_step"] = s + 1
+        elif idx < len(ids) - 1:
+            st.session_state["plan_dest"] = ids[idx + 1]
+            st.session_state["plan_step"] = 0
+        else:
+            st.session_state["plan_review"] = True
+
+    def _go_back() -> None:
+        s, idx = st.session_state["plan_step"], ids.index(st.session_state["plan_dest"])
+        if s > 0:
+            st.session_state["plan_step"] = s - 1
+        elif idx > 0:
+            st.session_state["plan_dest"] = ids[idx - 1]
+            st.session_state["plan_step"] = 2
+
+    title, cats, hint = WIZARD_STEPS[step]
+    st.caption(f"Step {step + 1} of 3 · {leg['city']} · {_leg_span(leg)}")
+    st.subheader(title)
+    if step == 1:  # flight/hotel step reflects this stop's needs
+        flags = (("✈️ flight", leg["need_flight"]), ("🏨 hotel", leg["need_hotel"]))
+        needs = [n for n, on in flags if on]
+        st.caption(
+            "Marked as needed: " + ", ".join(needs)
+            if needs
+            else "Not marked as needing a flight or hotel — add one anyway if you like."
+        )
+    else:
+        st.caption(hint)
+
     stop_spent = total_spent(
         [float(_home_amount(it, home)) for it in items if it["leg_id"] == leg["id"]]
     )
     _budget_line(stop_spent, _stop_budget(trip, leg), home, "This stop")
-    _item_manager(trip, show_add=True, tag=f"d{leg['id']}", fixed_leg_id=leg["id"])
+    _item_manager(
+        trip, show_add=True, categories=cats, tag=f"s{step}d{leg['id']}", fixed_leg_id=leg["id"]
+    )
+
+    st.divider()
+    bcol, ncol = st.columns(2)
+    bcol.button("← Back", key="wiz_back", on_click=_go_back, disabled=(step == 0 and i == 0))
+    if step == 2 and i == len(ids) - 1:
+        nlabel = "Review trip →"
+    elif step == 2:
+        nlabel = f"Next city: {legs[i + 1]['city']} →"
+    else:
+        nlabel = "Next →"
+    ncol.button(nlabel, key="wiz_next", type="primary", on_click=_go_next)
 
 
 # --- skeleton builder (new trip) ---------------------------------------------
@@ -614,6 +822,7 @@ def _render_skeleton() -> None:
         st.session_state.editing_index = None
         st.session_state.pop("trip_name", None)  # reset the builder for the next trip
         st.session_state.pop("trip_budget", None)
+        st.session_state.plan_phase = "steps"  # skeleton already set name/budget/legs
         st.session_state.active_trip_id = tid  # drop into per-destination planning
         st.session_state.plan_msg = f"Draft '{name}' created — plan each destination below."
 
@@ -691,7 +900,10 @@ with plan_tab:
         active_trip = next((t for t in list_trips() if t["id"] == active_id), None)
 
     if active_trip is not None:
-        _render_steps(active_trip)
+        if st.session_state.get("plan_phase", "setup") == "setup":
+            _render_trip_setup(active_trip)
+        else:
+            _render_steps(active_trip)
     else:
         st.session_state.active_trip_id = None
         _render_skeleton()
@@ -706,6 +918,8 @@ with plan_tab:
             with st.expander(f"{trip['name']} · {cities}"):
                 _legs_summary(trip["legs"])
                 if st.button("✏️ Edit", key=f"editdraft_{trip['id']}"):
+                    _reset_plan_ui()
+                    st.session_state.plan_phase = "setup"
                     st.session_state.active_trip_id = trip["id"]
                     st.rerun()
                 _delete_trip_control(trip)
@@ -720,6 +934,8 @@ with plan_tab:
             )
             if st.button("✏️ Edit this trip", key="edit_final_go"):
                 set_trip_status(pick, "draft")
+                _reset_plan_ui()
+                st.session_state.plan_phase = "setup"
                 st.session_state.active_trip_id = pick
                 st.rerun()
         else:

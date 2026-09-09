@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS items (
 -- Items are scheduled on a real DATE (within the destination's stay), not a
 -- day-number. Added after the initial items table shipped; idempotent.
 ALTER TABLE items ADD COLUMN IF NOT EXISTS on_date DATE;
+-- Cost is optional (a place you want to go with no price yet → TBD, counts as 0
+-- in the budget until filled). Idempotent: dropping NOT NULL twice is a no-op.
+ALTER TABLE items ALTER COLUMN cost DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_legs_trip ON legs (trip_id);
 CREATE INDEX IF NOT EXISTS idx_items_trip ON items (trip_id);

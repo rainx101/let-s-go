@@ -6,6 +6,53 @@ step**.
 
 ---
 
+## 2026-09-08 — Planning flow: city-by-city step wizard
+
+**What we did**
+- **Replaced the per-destination navigator with a step wizard** (mockup-approved
+  direction). You plan **city by city**; within a city a **Next/Back** flow moves
+  through **Activities → Flight/Hotel → Restaurants**, with the **waterfall budget
+  bar pinned on top** and the active stage highlighted. Each step shows the
+  **destination's time frame** ("Step 1 of 3 · Tokyo · Nov 3 → Nov 6").
+  **Next** past the last city's last step opens the whole-trip **Review → Finalize**
+  (Save as draft / Finalize / ◀ Keep editing).
+- **Activities anchor the budget (waterfall):** activities come first; the
+  Flight/Hotel step reflects the stop's need-flight/hotel flags. (Activity price
+  *search/autofill* — type "Disney", accept the API cost or edit it — is Phase 3;
+  manual entry is the always-available baseline.)
+- **Item cost is now optional for all types** (a place you want to go with no price
+  yet → **TBD**, counts as 0 in the budget until filled). Data: `items.cost` made
+  nullable (idempotent `DROP NOT NULL`); `add_item` / `update_item` accept `None`;
+  `_home_amount` treats TBD as 0; the list shows _TBD_ and the add/edit inputs read
+  "blank = TBD".
+- `_item_manager` now filters by **both** the fixed destination **and** category, so
+  each step lists only its own items. `_reset_plan_ui` also clears the wizard's
+  step/review state.
+- Verified: ruff/ty/pytest green (65 tests); **AppTest** walks the full wizard —
+  step titles + city/dates, a TBD-cost activity saved, flight/hotel caption from
+  the flags, city→city advance, and Review → Finalize — with no exception.
+
+## 2026-09-08 — Re-editing a trip opens a Setup view first
+
+**What we did**
+- **Editing a trip now opens a skeleton-style Setup view** (name · home currency ·
+  budget cap · destinations add/edit/delete), then **▶ Start planning** enters the
+  per-destination steps. Previously "Edit" jumped straight to the steps, so the
+  trip name, budget, and *adding* a destination were unreachable when re-editing.
+- New data helpers **`update_trip`** (name/currency/budget) and **`add_leg`**
+  (append a destination to an existing trip).
+- **Fixed:** a destination's edit form stayed expanded after you left planning and
+  came back. A new `_reset_plan_ui()` clears the transient per-leg / setup widget
+  state on Exit, on ◀ Setup, and when entering edit — so cards always reopen
+  collapsed. The steps view now shows a read-only destination header (`_leg_header`,
+  shared with the card); editing lives in Setup.
+- Flow: new trips still drop straight into the steps (the skeleton already
+  collected everything); re-editing a draft or finalized trip lands in Setup.
+  **Exit leaves** planning; **◀ Setup** hops back from the steps.
+- Verified: ruff/ty/pytest green (65 tests); live round-trip (`update_trip` /
+  `add_leg`); **AppTest** — re-edit opens Setup, Start planning reaches the steps,
+  and an opened edit form is collapsed after Exit + re-enter (the bug).
+
 ## 2026-09-08 — Phase 2: waterfall budget header
 
 **What we did**
