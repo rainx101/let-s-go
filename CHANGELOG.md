@@ -6,6 +6,35 @@ step**.
 
 ---
 
+## 2026-09-08 — Decision: place/POI destinations + anchor-ranked hotels
+
+**What we decided** (docs only — PRD §6/§7/§9, TASKS Phase 3, memory; not built)
+- A **destination is any geocoded place, not only a city** — a POI like
+  "Disneyland, Anaheim" is valid (Expedia-style). That place is the stop's
+  **anchor**.
+- **Hotel search is anchor-ranked:** options ranked by **distance-to-anchor ×
+  price** (nearest *and* cheapest) within the flight+hotel budget — not price
+  alone. Often the stop's **primary goal** (the driving-to-Disney case).
+- **Activities can scatter** from the anchor (hotel near Anaheim, activities in
+  LA); each keeps its own geocoded point, and days can group by proximity.
+- All **Phase 3** (geocoding + hotel search); manual entry of a place + hotel
+  stays the baseline. New memory [[destination-anchor-model]].
+
+## 2026-09-08 — Decision: per-city flight+hotel budget (half-default)
+
+**What we decided** (docs only — PRD §6 + memory updated; not yet built)
+- The waterfall budget moves from **whole-trip** to **per-city**, with two
+  adjustable levers: **Level 1** the city's budget (its cap, else an even share of
+  the trip cap), and **Level 2** the flight+hotel slice within it, which
+  **defaults to half** the city's budget and is overridable in that city's Step 2.
+- Order within a city stays: activities off the top → flight+hotel (its Level-2
+  budget) → food gets the remainder; the flight+hotel slice **clamps** to what's
+  left if activities already exceed the non-flight half.
+- This Level-2 number is the **ceiling the Phase 3 flight/hotel search obeys**.
+  Supersedes the 2026-09-03 whole-trip, manually-chosen-amount, no-default model.
+- **To build:** move `flight_hotel_budget` from the whole-trip header into each
+  city's wizard Step 2, defaulting to half of `_stop_budget(trip, leg)`.
+
 ## 2026-09-08 — Planning flow: city-by-city step wizard
 
 **What we did**
