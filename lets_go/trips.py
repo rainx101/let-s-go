@@ -203,6 +203,14 @@ def set_trip_status(trip_id: int, status: str) -> None:
     logger.info("Trip %s status -> %s", trip_id, status)
 
 
+def set_flight_hotel_budget(trip_id: int, amount: Decimal | None) -> None:
+    """Set (or clear) the waterfall's flight+hotel allocation (PRD §6)."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("UPDATE trips SET flight_hotel_budget = %s WHERE id = %s", (amount, trip_id))
+    logger.info("Trip %s flight+hotel budget -> %s", trip_id, amount)
+
+
 def delete_trip(trip_id: int) -> None:
     """Delete a trip and its legs + items (legs/items cascade)."""
     conn = get_connection()
@@ -216,8 +224,8 @@ def list_trips() -> list[dict]:
     conn = get_connection()
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT id, name, home_currency, budget_cap, trip_type, status, created_at "
-            "FROM trips ORDER BY created_at DESC"
+            "SELECT id, name, home_currency, budget_cap, trip_type, status, "
+            "flight_hotel_budget, created_at FROM trips ORDER BY created_at DESC"
         )
         trips = cur.fetchall()
         cur.execute(

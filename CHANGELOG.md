@@ -6,6 +6,53 @@ step**.
 
 ---
 
+## 2026-09-08 — Phase 2: waterfall budget header
+
+**What we did**
+- **Waterfall budget** (PRD §6) now anchors the planning view: the whole-trip cap
+  is shown **spent in flow order** — **🎯 Activities** off the top → **✈️🏨 Flight
+  + hotel** against an amount you choose from what's left → **🍽️ Food** gets the
+  remainder. Three compact stage lines, each flagging over-budget.
+- **Your flight+hotel allocation persists:** new `trips.flight_hotel_budget`
+  column (idempotent migration; NULL until set) + `set_flight_hotel_budget`
+  helper; a number input saves it on change. Empty by default (nothing invented);
+  the food split appears once you set it.
+- **Pure math:** `waterfall_budget(cap, activities_spent, alloc)` →
+  `WaterfallBudget(after_activities, flight_hotel_alloc, food_remainder)`, with
+  the allocation clamped to what's left after activities (handles activities
+  over-cap). The header reuses `_budget_line` per stage (no new bar logic).
+- The even-split **per-stop budget** stays as the geographic refinement when you
+  drill into a destination; the two coexist.
+- Verified: ruff/ty/pytest green (65 tests, 4 new); live Neon round-trip
+  (migration + set/clear the allocation); **AppTest** renders all three stages +
+  the allocation input with no exception.
+
+**Next step**
+- Phase 3: geocoding (OpenStreetMap) → distance ordering → flight/hotel search.
+
+## 2026-09-08 — Phase 3: live currency rates (with static fallback)
+
+**What we did**
+- **Live exchange rates** replace the static placeholder table. Source:
+  **open.er-api.com** (free, no API key, base USD) — so budget totals and the
+  ≈-home / ≈-local previews use real rates.
+- **Fail-soft (PRD §11):** `fetch_live_rates` fetches + inverts (source gives
+  units-per-USD; we store USD-per-unit) for our supported currencies;
+  `live_rates_or_static` falls back to the static `RATES` on any network/parse
+  error (logged as a warning). `convert` gained an optional `rates=` param —
+  every existing call site/test is unchanged; live rates are opt-in.
+- **Cached** in `app.py` via `@st.cache_data(ttl=3600)` (one fetch/hour, shared
+  across the render), threaded into the three `convert` call sites. **No new
+  dependency** — stdlib `urllib` + `json`; the HTTP fetch is injectable so tests
+  never hit the network.
+- Verified: ruff/ty/pytest green (61 tests, 7 new); live round-trip against
+  open.er-api.com returns all supported currencies (incl. TWD) with plausible
+  rates; fallback path unit-tested.
+
+**Next step**
+- Rest of Phase 3: geocoding (OpenStreetMap) → distance ordering → flight/hotel
+  search. Or the deferred Phase 2 waterfall budget header (now on real rates).
+
 ## 2026-09-03 — Items scheduled on a date, not a day-number
 
 **What we did**

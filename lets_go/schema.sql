@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS trips (
 -- flow creates new trips as 'draft'.
 ALTER TABLE trips ADD COLUMN IF NOT EXISTS trip_type TEXT NOT NULL DEFAULT 'round_trip';
 ALTER TABLE trips ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'final';
+-- Waterfall budget stage 2: the flight+hotel allocation the user chooses from
+-- what's left after activities (PRD §6). NULL until set.
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS flight_hotel_budget NUMERIC(12, 2);
 
 CREATE TABLE IF NOT EXISTS legs (
     id           SERIAL PRIMARY KEY,
