@@ -88,17 +88,24 @@ Every auto-value must remain **user-editable**; manual entry always works.
 
 - [x] **Currency conversion:** live rates via **open.er-api.com** (free, no key,
       base USD); static `RATES` fallback + 1h cache (PRD §10/§11).
-- [ ] **Geocoding:** locate activities/restaurants by name via **OpenStreetMap**
-      (respect ~1 req/sec + user-agent).
+- [ ] **Geocoding:** locate activities/restaurants **and the destination place
+      (the anchor)** by name via **OpenStreetMap** (respect ~1 req/sec + user-agent).
+- [ ] **Place/POI destinations:** a destination can be **any geocoded place, not
+      just a city** (e.g. "Disneyland, Anaheim"); that point is the stop's
+      **anchor** (PRD §6/§7, revised 2026-09-08).
 - [ ] **Distance ordering:** order each day's items by distance; **place
-      restaurants near the activities** (PRD §6/§8/§9).
+      restaurants near the activities**; group days by proximity when activities
+      scatter from the anchor (PRD §6/§8/§9).
 - [ ] **Day arrangement:** **recommend a day** for undated activities (spread
       across the stop's date range); allow **reorder items up/down** per day
       (PRD §9). _(Moved from Phase 2 — belongs with the day-by-day view.)_
 - [ ] **Flight auto-search:** Travelpayouts Data API (§11) — token in secrets;
       **cache results**; cheapest within the **flight+hotel** allocation.
-- [ ] **Hotel auto-search:** one small-quota free API (pick at build) — **cache**;
-      **manual fallback** when quota/errors hit.
+- [ ] **Hotel auto-search (anchor-ranked):** one small-quota free API (pick at
+      build) returning **price + location** — rank by **distance-to-anchor × price**
+      (nearest *and* cheapest) within the flight+hotel budget, not price alone;
+      **cache**; **manual fallback** when quota/errors hit. Often the stop's
+      **primary goal** (the driving-to-Disney case, PRD §6).
 - [ ] **Activity price search:** best-effort source if one exists; **hand-type
       fallback** always available (PRD §11).
 - [ ] **Results display:** **preferred/"liked before" on top with a mark**, then

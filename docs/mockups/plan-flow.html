@@ -1,0 +1,315 @@
+<title>let's go planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#F1F3F5; --surface:#FFFFFF; --sunken:#F6F8F9;
+    --ink:#1B242B; --muted:#657079; --faint:#98A2AB;
+    --hair:#E7EBEE; --line:#D7DDE1;
+    --teal:#1E7A82; --teal-soft:#E6F1F1;
+    --good:#4A9E73; --amber:#C98A3C;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0C1013; --surface:#151C21; --sunken:#1A2228;
+      --ink:#E9EDEF; --muted:#9BA6AE; --faint:#69747C;
+      --hair:#242E34; --line:#313C43;
+      --teal:#5FB4BB; --teal-soft:#14302F;
+      --good:#63BC8B; --amber:#DBA35A;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0C1013; --surface:#151C21; --sunken:#1A2228;
+    --ink:#E9EDEF; --muted:#9BA6AE; --faint:#69747C;
+    --hair:#242E34; --line:#313C43;
+    --teal:#5FB4BB; --teal-soft:#14302F;
+    --good:#63BC8B; --amber:#DBA35A;
+  }
+  *{box-sizing:border-box}
+  body{
+    background:var(--ground); color:var(--ink); margin:0;
+    font-family:"Hanken Grotesk",system-ui,sans-serif; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    display:flex; flex-direction:column; align-items:center; min-height:100vh;
+    padding:24px 14px 44px;
+  }
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+
+  .intro{width:100%; max-width:400px; margin-bottom:14px}
+  .intro h1{font-size:15px; margin:0 0 3px; font-weight:700; letter-spacing:-.01em}
+  .intro p{margin:0; font-size:12.5px; color:var(--muted)}
+
+  /* screen switch tabs (mockup aid, not part of the app) */
+  .switch{display:flex; gap:6px; width:100%; max-width:400px; margin-bottom:10px}
+  .switch button{flex:1; font:inherit; font-size:11.5px; font-weight:600; cursor:pointer;
+    padding:7px; border-radius:9px; border:1px solid var(--line); background:var(--surface); color:var(--muted)}
+  .switch button.on{background:var(--ink); border-color:var(--ink); color:var(--ground)}
+
+  .app{
+    width:100%; max-width:400px; background:var(--surface);
+    border:1px solid var(--hair); border-radius:22px; overflow:hidden;
+    box-shadow:0 1px 2px rgba(20,30,40,.05), 0 12px 32px rgba(20,30,40,.06);
+  }
+  .brand{font-weight:700; font-size:13px; color:var(--teal); letter-spacing:.02em}
+
+  /* ---- setup / skeleton ---- */
+  .setup{padding:18px 20px 20px}
+  .setup h2{font-size:20px; font-weight:700; letter-spacing:-.02em; margin:10px 0 16px}
+  .field{margin-bottom:14px}
+  .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:5px}
+  .inp{border:1px solid var(--line); border-radius:10px; background:var(--sunken); padding:10px 12px; font-size:14px}
+  .inp.ph{color:var(--faint)}
+  .two{display:flex; gap:10px} .two .field{flex:1}
+  .sub-h{font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:18px 0 8px}
+
+  .destcard{border:1px solid var(--hair); border-radius:12px; padding:12px 14px; margin-bottom:10px}
+  .destcard .top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
+  .destcard .nm{font-size:14.5px; font-weight:600}
+  .destcard .nm .pin{color:var(--teal)}
+  .destcard .mt{font-size:12px; color:var(--muted); margin-top:2px}
+  .destcard .acts{display:flex; gap:8px; flex:none}
+  .destcard .acts span{font-size:13px; color:var(--faint); cursor:pointer}
+
+  .addform{border:1px dashed var(--line); border-radius:12px; padding:14px; margin-bottom:12px}
+  .addform .hint{font-size:11.5px; color:var(--faint); margin:-2px 0 12px}
+  .chips{display:flex; gap:8px; margin-top:2px}
+  .chip{flex:1; display:flex; align-items:center; gap:8px; font-size:12.5px; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:var(--sunken); color:var(--muted)}
+  .chip.on{border-color:var(--teal); background:var(--teal-soft); color:var(--ink)}
+  .chip .sw{width:28px; height:17px; border-radius:99px; background:var(--line); position:relative; flex:none}
+  .chip.on .sw{background:var(--teal)}
+  .chip .sw::after{content:""; position:absolute; width:13px; height:13px; border-radius:50%; background:#fff; top:2px; left:2px}
+  .chip.on .sw::after{left:13px}
+  .formbtns{display:flex; gap:10px; margin-top:14px}
+  .mini{flex:1; font:inherit; font-size:12.5px; font-weight:600; padding:9px; border-radius:9px; cursor:pointer}
+  .mini.solid{background:var(--teal); border:1px solid var(--teal); color:#fff}
+  .mini.ghost{background:none; border:1px solid var(--line); color:var(--muted)}
+
+  .start{width:100%; font:inherit; font-size:14px; font-weight:600; padding:12px; margin-top:6px;
+    border-radius:11px; border:1px solid var(--teal); background:var(--teal); color:#fff; cursor:pointer}
+
+  /* ---- plan (steps) ---- */
+  header{padding:18px 20px 16px}
+  .dest{font-size:20px; font-weight:700; letter-spacing:-.02em; margin-top:8px}
+  .dest .pin{color:var(--teal)}
+  .dest-sub{font-size:12.5px; color:var(--muted); margin-top:1px}
+  .backlink{font-size:12px; color:var(--teal); cursor:pointer; font-weight:600}
+
+  .bud{margin-top:16px}
+  .bud-top{display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; margin-bottom:6px}
+  .bud-top .left{color:var(--muted)} .bud-top .left b{color:var(--ink); font-weight:600}
+  .bar{height:9px; border-radius:6px; background:var(--sunken); display:flex; overflow:hidden; border:1px solid var(--hair)}
+  .bar span{height:100%}
+  .seg-act{background:var(--teal)} .seg-htl{background:var(--amber)} .seg-food{background:var(--good)}
+  .legend{display:flex; gap:14px; margin-top:8px; font-size:11px; color:var(--muted)}
+  .legend i{width:8px; height:8px; border-radius:2px; display:inline-block; margin-right:5px; vertical-align:middle}
+
+  .steps{display:flex; border-top:1px solid var(--hair); border-bottom:1px solid var(--hair); background:var(--sunken)}
+  .steps button{flex:1; font:inherit; font-size:11.5px; font-weight:600; cursor:pointer; border:0; background:none; color:var(--faint); padding:11px 4px; position:relative}
+  .steps button .n{display:inline-flex; width:18px; height:18px; border-radius:50%; background:var(--line); color:var(--surface); align-items:center; justify-content:center; font-size:11px; margin-right:5px}
+  .steps button.on{color:var(--ink)} .steps button.on .n{background:var(--teal)}
+  .steps button.done .n{background:var(--good)}
+  .steps button.on::after{content:""; position:absolute; left:16px; right:16px; bottom:-1px; height:2px; background:var(--teal)}
+
+  main{padding:18px 20px 6px; min-height:210px}
+  .step-h{font-size:17px; font-weight:700; letter-spacing:-.01em; margin:0}
+  .step-note{font-size:12.5px; color:var(--muted); margin:3px 0 14px}
+
+  .row{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--hair)}
+  .row:last-of-type{border-bottom:0}
+  .row .em{font-size:17px; width:22px; text-align:center; flex:none}
+  .row .g{flex:1; min-width:0}
+  .row .t{font-size:13.5px; font-weight:500}
+  .row .s{font-size:11.5px; color:var(--faint); margin-top:1px}
+  .row .p{font-size:12.5px; text-align:right; white-space:nowrap}
+  .row .p.tbd{color:var(--faint)}
+  .row .p .h{color:var(--faint); font-size:10.5px; display:block}
+  .estflag{font-size:9px; letter-spacing:.04em; text-transform:uppercase; color:var(--amber); font-weight:600; margin-left:4px}
+  .add{display:block; width:100%; text-align:left; font:inherit; font-size:12.5px; color:var(--teal); background:none; border:0; padding:12px 0 2px; cursor:pointer; font-weight:600}
+
+  .reco-head{display:flex; align-items:center; gap:8px; margin:4px 0 10px}
+  .reco-head .txt{font-size:13px; font-weight:600}
+  .badge{font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--amber); border:1px solid var(--amber); border-radius:5px; padding:1px 6px}
+  .drive{font-size:12px; color:var(--muted); margin-bottom:12px}
+  .hotel{display:flex; align-items:center; gap:12px; padding:11px 12px; border:1px solid var(--hair); border-radius:12px; margin-bottom:8px; background:var(--sunken)}
+  .hotel.pick{border-color:var(--teal); background:var(--teal-soft)}
+  .hotel .g{flex:1; min-width:0}
+  .hotel .t{font-size:13.5px; font-weight:600}
+  .hotel .s{font-size:11.5px; color:var(--muted); margin-top:2px}
+  .hotel .s .near{color:var(--teal); font-weight:600}
+  .hotel .pr{text-align:right; white-space:nowrap}
+  .hotel .pr .amt{font-size:13.5px; font-weight:600}
+  .hotel .pr .per{font-size:10px; color:var(--faint)}
+  .choose{font:inherit; font-size:11.5px; font-weight:600; margin-top:5px; cursor:pointer; border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:8px; padding:4px 10px}
+  .hotel.pick .choose{background:var(--teal); border-color:var(--teal); color:#fff}
+  .reco-foot{font-size:11px; color:var(--faint); margin:4px 0 2px; text-align:center}
+
+  footer{display:flex; gap:10px; padding:14px 20px 18px; border-top:1px solid var(--hair)}
+  .nav{flex:1; font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; padding:11px; border-radius:11px}
+  .nav.back{background:none; border:1px solid var(--line); color:var(--muted); flex:0 0 84px}
+  .nav.next{background:var(--teal); border:1px solid var(--teal); color:#fff}
+  .nav:disabled{opacity:.4; cursor:default}
+
+  .rev-day{padding:2px 0 10px}
+  .rev-day h3{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--teal); margin:12px 0 4px}
+  .rev-line{display:flex; gap:9px; padding:5px 0; font-size:13px; align-items:baseline}
+  .rev-line .n{color:var(--faint); font-size:11px; width:14px; flex:none}
+  .rev-line .d{color:var(--faint); font-size:11px}
+  .rev-line .food{color:var(--good)}
+
+  .foot-note{width:100%; max-width:400px; margin-top:13px; font-size:11px; color:var(--faint); text-align:center; line-height:1.5}
+  [hidden]{display:none!important}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="intro">
+  <h1>let's go — plan flow (simple)</h1>
+  <p>Driving-to-Disney example. Screen 1 sets up the trip (skeleton); Start planning drops into the steps. Nothing saves — example data.</p>
+</div>
+
+<div class="switch">
+  <button id="sw0" class="on" onclick="show('setup')">1 · Setup</button>
+  <button id="sw1" onclick="show('plan')">2 · Plan steps</button>
+</div>
+
+<div class="app">
+  <!-- ============ SETUP / SKELETON ============ -->
+  <div id="setup" class="setup">
+    <div class="brand">🧳 let's go</div>
+    <h2>Plan a trip</h2>
+
+    <div class="field"><label>Trip name</label><div class="inp">Weekend at Disney</div></div>
+    <div class="two">
+      <div class="field"><label>Home currency</label><div class="inp">USD</div></div>
+      <div class="field"><label>Budget cap</label><div class="inp">$2,000</div></div>
+    </div>
+
+    <div class="sub-h">Destinations</div>
+
+    <div class="destcard">
+      <div class="top">
+        <div>
+          <div class="nm"><span class="pin">📍</span> Disneyland, Anaheim</div>
+          <div class="mt">Mar 14 → 16 · 🚗 driving · 🏨 hotel needed</div>
+        </div>
+        <div class="acts"><span>✏️</span><span>🗑</span></div>
+      </div>
+    </div>
+
+    <div class="addform">
+      <div class="field"><label>Destination — a city or any place</label>
+        <div class="inp ph">e.g. Disneyland, Anaheim · Yosemite · Kyoto</div>
+        <div class="hint">Not just cities — type a place and we anchor the hotel to it.</div>
+      </div>
+      <div class="two">
+        <div class="field"><label>Start</label><div class="inp mono">Mar 14</div></div>
+        <div class="field"><label>End</label><div class="inp mono">Mar 16</div></div>
+      </div>
+      <div class="chips">
+        <div class="chip"><span class="sw"></span>Need flight</div>
+        <div class="chip on"><span class="sw"></span>Need hotel</div>
+      </div>
+      <div class="formbtns">
+        <button class="mini ghost">Cancel</button>
+        <button class="mini solid">Save destination</button>
+      </div>
+    </div>
+
+    <button class="start" onclick="show('plan')">▶ Start planning</button>
+  </div>
+
+  <!-- ============ PLAN STEPS ============ -->
+  <div id="plan" hidden>
+    <header>
+      <span class="backlink" onclick="show('setup')">◀ Setup</span>
+      <div class="dest"><span class="pin">📍</span> Disneyland, Anaheim</div>
+      <div class="dest-sub">Mar 14 – 16 · driving · budget $2,000</div>
+      <div class="bud">
+        <div class="bud-top"><span class="left"><b class="mono">$740</b> planned</span><span class="mono">$1,260 left</span></div>
+        <div class="bar"><span class="seg-act" style="width:12%"></span><span class="seg-htl" style="width:14%"></span><span class="seg-food" style="width:5%"></span></div>
+        <div class="legend">
+          <span><i style="background:var(--teal)"></i>Activities</span>
+          <span><i style="background:var(--amber)"></i>Hotel</span>
+          <span><i style="background:var(--good)"></i>Food</span>
+        </div>
+      </div>
+    </header>
+
+    <nav class="steps" id="stepper">
+      <button data-s="0"><span class="n">1</span>Activities</button>
+      <button data-s="1"><span class="n">2</span>Hotel</button>
+      <button data-s="2"><span class="n">3</span>Food</button>
+    </nav>
+
+    <main id="main"></main>
+
+    <footer>
+      <button class="nav back" id="back" onclick="prev()">Back</button>
+      <button class="nav next" id="next" onclick="next()">Next</button>
+    </footer>
+  </div>
+</div>
+
+<p class="foot-note">Simple mockup for direction only. Step 2's hotel list is an example of the Phase 3 recommendation — ranked by distance to the anchor + price.</p>
+
+<script>
+const STEPS = [
+  { h:"Activities", note:"Add the places you want to go — type one even with no price yet.",
+    body:`
+      <div class="row"><span class="em">🏰</span><div class="g"><div class="t">Disneyland Park</div><div class="s">1-day ticket · Mar 14</div></div><div class="p mono">$104</div></div>
+      <div class="row"><span class="em">🎬</span><div class="g"><div class="t">Universal Studios</div><div class="s">Los Angeles · ~40 min away · Mar 15</div></div><div class="p mono">$109</div></div>
+      <div class="row"><span class="em">🔭</span><div class="g"><div class="t">Griffith Observatory</div><div class="s">Los Angeles · date TBD</div></div><div class="p tbd mono">TBD</div></div>
+      <button class="add">+ Add an activity</button>` },
+  { h:"Flight &amp; hotel", note:"Driving this trip — no flight. The hotel matters most, so we find one near your anchor.",
+    body:`
+      <div class="drive">✈️ <b>No flight</b> — you're driving to Anaheim.</div>
+      <div class="reco-head"><span class="txt">🏨 Hotels near Disneyland</span><span class="badge">Phase 3 · example</span></div>
+      <div class="hotel pick"><div class="g"><div class="t">Camelot Inn &amp; Suites</div><div class="s"><span class="near">0.3 mi</span> from Disneyland · ★4.1</div><button class="choose">✓ Chosen</button></div><div class="pr"><div class="amt mono">$128</div><div class="per">/ night</div></div></div>
+      <div class="hotel"><div class="g"><div class="t">Fairfield by Marriott</div><div class="s"><span class="near">0.6 mi</span> · ★4.3</div><button class="choose">Choose</button></div><div class="pr"><div class="amt mono">$142</div><div class="per">/ night</div></div></div>
+      <div class="hotel"><div class="g"><div class="t">Del Sol Inn</div><div class="s"><span class="near">0.4 mi</span> · ★3.9</div><button class="choose">Choose</button></div><div class="pr"><div class="amt mono">$99</div><div class="per">/ night</div></div></div>
+      <div class="reco-foot">Ranked by distance + price · within your $1,000 hotel budget</div>
+      <button class="add">+ Add a hotel manually</button>` },
+  { h:"Restaurants", note:"Add by hand with a rough cost — we'll place them near your activities.",
+    body:`
+      <div class="row"><span class="em">🍔</span><div class="g"><div class="t">Carthay Circle <span class="estflag">est</span></div><div class="s">inside Disneyland</div></div><div class="p mono">$45</div></div>
+      <div class="row"><span class="em">🌮</span><div class="g"><div class="t">Taco spot near hotel <span class="estflag">est</span></div><div class="s">date TBD</div></div><div class="p tbd mono">TBD</div></div>
+      <button class="add">+ Add a restaurant</button>` },
+  { h:"Review", note:"Everything so far. Finalize when it looks right.", review:true,
+    body:`
+      <div class="rev-day"><h3>Sat · Mar 14</h3>
+        <div class="rev-line"><span class="n">1</span><span>🏨 Camelot Inn (check in)</span><span class="d">· $128</span></div>
+        <div class="rev-line"><span class="n">2</span><span>🏰 Disneyland Park</span><span class="d">· 0.3 mi · $104</span></div>
+        <div class="rev-line"><span class="n">3</span><span class="food">🍔 Carthay Circle</span><span class="d">· est $45</span></div></div>
+      <div class="rev-day"><h3>Sun · Mar 15 — Los Angeles</h3>
+        <div class="rev-line"><span class="n">1</span><span>🎬 Universal Studios</span><span class="d">· 40 min · $109</span></div>
+        <div class="rev-line"><span class="n">2</span><span>🔭 Griffith Observatory</span><span class="d">· suggested</span></div></div>
+      <div class="reco-foot" style="text-align:left;margin-top:8px">Phase 3 groups the LA day apart from the Anaheim day by distance, and suggests days for undated spots.</div>` },
+];
+
+let step = 0;
+function show(v){
+  document.getElementById("setup").hidden = v!=="setup";
+  document.getElementById("plan").hidden = v!=="plan";
+  document.getElementById("sw0").className = v==="setup" ? "on" : "";
+  document.getElementById("sw1").className = v==="plan" ? "on" : "";
+  if(v==="plan") render();
+}
+function render(){
+  document.querySelectorAll("#stepper button").forEach(b=>{
+    const s=+b.dataset.s; b.className = s===step ? "on" : (s<step ? "done" : "");
+  });
+  const st = STEPS[step];
+  document.getElementById("main").innerHTML = `<h2 class="step-h">${st.h}</h2><p class="step-note">${st.note}</p>${st.body}`;
+  document.getElementById("back").disabled = step===0;
+  document.getElementById("next").textContent = step===2 ? "Review" : (st.review ? "✓ Finalize trip" : "Next");
+}
+function next(){
+  if(STEPS[step].review){ alert("Mockup — this would finalize the trip and move it to Receipts."); return; }
+  if(step<STEPS.length-1){ step++; render(); }
+}
+function prev(){ if(step>0){ step--; render(); } }
+document.getElementById("stepper").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(b){ step=+b.dataset.s; render(); }
+});
+render();
+</script>

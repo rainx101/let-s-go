@@ -74,16 +74,24 @@ so they resurface next time with a "liked before" mark; restaurants are rated
 - **Trip type (revised 2026-09-03):** **round-trip** or **one-way**, on top of
   multi-city. Round-trip includes a **return flight to the origin** (its own
   date); one-way ends at the final destination.
-- **Budget allocation — waterfall (revised 2026-09-03):** the cap is spent in
-  flow order, not split into fixed percentages.
-  1. **Activities first** — concrete, fixed-price line items (the "need"); spent
-     off the top.
-  2. **Flight + hotel** — planned against an **amount the user chooses** from
-     what's left after activities.
-  3. **Restaurants / food** — get the **remainder**.
-  The **budget header shows all three at every step** (activities locked,
-  flight+hotel chosen, food remaining). Applied at the **whole-trip** level first;
-  the existing **per-stop caps** are an optional geographic refinement.
+- **Budget allocation — per-city waterfall (revised 2026-09-08):** spent in flow
+  order, per destination, with **two adjustable levers**.
+  - **Level 1 — the city's budget:** each destination's **cap** (set in Setup),
+    else an **even share** of the trip cap (`trip cap ÷ number of cities`).
+    Adjustable per destination.
+  - **Level 2 — the flight+hotel slice within that city's budget:** **defaults to
+    half** the city's budget, and is **adjustable** (type a number in the city's
+    Step 2 to override the half). This Level-2 number is the **ceiling the Phase 3
+    flight/hotel search obeys** ("find flights + a hotel under $X").
+  - **Order within a city:** **Activities** off the top → **Flight + hotel**
+    (its Level-2 budget) → **Restaurants / food** get the **remainder**. If a
+    city's activities already cost more than its non-flight half, the flight+hotel
+    slice is **clamped** to what's actually left, so you never plan past the city's
+    budget.
+  The **budget header shows all three stages** while planning that city. (Earlier
+  the waterfall was whole-trip with a single manually-chosen flight+hotel amount
+  and no default; superseded 2026-09-08 by this per-city, half-default model to
+  match the city-by-city step wizard.)
 - **Currency:** one **home currency** chosen by the user; all costs convert to it
   and the budget cap is in it.
 - **Recommendation results display:** **preferred / "liked before" shown on top
@@ -98,6 +106,20 @@ so they resurface next time with a "liked before" mark; restaurants are rated
   Foursquare) is later accepted — not free, so not in the initial build.
 - **Trip shape:** **multi-city** allowed — a trip can have several cities/legs,
   each with its own dates.
+- **Destinations & hotel anchoring (revised 2026-09-08):** a destination is **any
+  geocoded place, not only a city** — a point of interest works (e.g.
+  **"Disneyland, Anaheim"**), Expedia-style. That place is the stop's **anchor**.
+  - **Hotel is anchored to it:** the hotel recommendation ranks options by a
+    **distance-to-anchor × price combo** (nearest *and* cheapest), within the
+    flight+hotel budget (§6) — not cheapest-alone. Finding a good hotel near the
+    anchor is often the **primary goal** of the stop (the driving-to-Disney case).
+  - **Activities can scatter:** each activity keeps its **own geocoded point** and
+    may sit far from the anchor (hotel near Disney/Anaheim, activities in LA). The
+    plan uses distance from the anchor as a signal and can **group days by
+    proximity** (an Anaheim day vs an LA day), rather than assuming one cluster.
+  - Driving trips just turn **need-flight off**; the anchor + hotel + activities
+    stand on their own. (All this is **Phase 3** — geocoding + hotel search;
+    manual entry of a place and a hotel stays the always-available baseline.)
 - **Itinerary detail:** **group spots by day** (Day 1, Day 2…), ordered **by
   distance** within each day. No fixed clock times. Fully editable.
 - **Recommendations:** **auto-search from day one** using **free-tier APIs**. User
@@ -117,10 +139,13 @@ so they resurface next time with a "liked before" mark; restaurants are rated
 
 ## 7. Core concepts / data model (draft — confirm at build)
 
-- **Trip** — name, **type** (round-trip / one-way), one or more **cities/legs**
-  each with a **date range**, an overall **budget cap**, and a **status**
+- **Trip** — name, **type** (round-trip / one-way), one or more **destinations/
+  legs** each with a **date range**, an overall **budget cap**, and a **status**
   (**draft** while planning → **final** on save). Flags for whether flight/hotel
   are needed. (Revised 2026-09-03.)
+- **Destination (leg)** — a **place, not only a city**: a free-text name that
+  Phase 3 **geocodes to a point** (a POI like "Disneyland" is valid). That point
+  is the stop's **anchor** for hotel search and distance (§6, revised 2026-09-08).
 - **Activity** — a fixed-price thing to do; assigned to a day (day optional until
   the receipt recommends one); **searched when possible, else hand-typed**; the
   first budget category in the waterfall (§6).
@@ -129,8 +154,10 @@ so they resurface next time with a "liked before" mark; restaurants are rated
   the receipt budget is accurate (§9 step 6).
 - **Flight** — belongs to a trip/leg; options with prices; one chosen; counts
   toward budget.
-- **Hotel** — belongs to a trip/leg; options with prices; one chosen; counts
-  toward budget; can be marked **preferred**.
+- **Hotel** — belongs to a trip/leg; options with prices **and locations**; one
+  chosen; counts toward budget; can be marked **preferred**. Search ranks options
+  by **distance-to-anchor × price** within the flight+hotel budget (§6), not price
+  alone.
 - **Spot** — a place to visit; located by name; assigned to a day; counts toward
   budget.
 - **Restaurant** — located by name; can be added to a day (distance-planned);
@@ -186,11 +213,13 @@ creating/editing happens in the **Plan** tab; **Receipts** holds finalized trips
    budget; **Delete** (with confirm).
 5. **Editing** (all in the **Plan** tab): **Drafts** (Edit → keep planning /
    Delete) and **Edit a finalized trip** (pick one → reopens for editing).
-6. **Phase 3 additions:** flight/hotel/activity **auto-search**; **distance**
-   ordering (restaurants near activities); **recommend a day** for undated
-   activities; **reorder** items; on a finalized receipt, **rate** restaurants
-   and mark hotels **preferred**; these resurface with a "liked before" mark next
-   time in the same city.
+6. **Phase 3 additions:** flight/hotel/activity **auto-search** — incl.
+   **anchor-ranked hotel search** (nearest-to-the-destination-place × price, §6);
+   **geocoded place destinations** (a POI, not just a city); **distance** ordering
+   (restaurants near activities; days grouped by proximity); **recommend a day**
+   for undated activities; **reorder** items; on a finalized receipt, **rate**
+   restaurants and mark hotels **preferred**; these resurface with a "liked
+   before" mark next time in the same area.
 
 ## 9a. Navigation / layout (revised 2026-09-03, as built)
 
