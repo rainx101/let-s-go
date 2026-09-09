@@ -6,6 +6,25 @@ step**.
 
 ---
 
+## 2026-09-08 — Built: per-city flight+hotel budget (half-default)
+
+**What we did** (implements the 2026-09-08 decision, PRD §6)
+- The waterfall budget is now **per city**. Each city shows its own three stages —
+  🎯 Activities → ✈️🏨 Flight + hotel → 🍽️ Food — using **that city's budget**
+  (its cap, else an even share of the trip cap). The bar sits **on top of every
+  step** for the selected city.
+- The **flight+hotel budget defaults to half** the city's budget and is
+  **overridable** in that city's **Step 2** (a number input, saved on the leg).
+  This Level-2 number is the ceiling the Phase 3 hotel search will obey.
+- Data: `legs.flight_hotel_budget` (idempotent, nullable = half-default) +
+  `set_leg_flight_hotel_budget`; `list_trips` returns it. The whole-trip
+  `trips.flight_hotel_budget` + `set_flight_hotel_budget` / `_waterfall_header`
+  are **retired** (trip column left dormant, not dropped). Pure
+  `flight_hotel_default(city_budget) = city_budget / 2` (reuses `waterfall_budget`).
+- Verified: ruff/ty/pytest green (66 tests, 1 new); live round-trip (per-leg set
+  is independent); **AppTest** — the city bar shows the half default, Step 2's
+  input overrides it and saves on the leg, the bar updates.
+
 ## 2026-09-08 — Decision: place/POI destinations + anchor-ranked hotels
 
 **What we decided** (docs only — PRD §6/§7/§9, TASKS Phase 3, memory; not built)

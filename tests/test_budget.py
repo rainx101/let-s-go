@@ -2,6 +2,7 @@
 
 from lets_go.budget import (
     budget_progress,
+    flight_hotel_default,
     is_over_budget,
     remaining_budget,
     total_spent,
@@ -68,6 +69,10 @@ def test_waterfall_no_allocation_leaves_all_for_food():
     wb = waterfall_budget(2000.0, 500.0, 0.0)
     assert wb.flight_hotel_alloc == 0.0
     assert wb.food_remainder == 1500.0
+
+
+def test_flight_hotel_default_is_half_the_city_budget():
+    assert flight_hotel_default(2000.0) == 1000.0
 
 
 def test_waterfall_activities_over_cap_zeroes_the_rest():
