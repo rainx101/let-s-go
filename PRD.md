@@ -171,12 +171,15 @@ creating/editing happens in the **Plan** tab; **Receipts** holds finalized trips
    budget**, and need-flight/hotel flags. Destinations are editable, and the next
    card's "From" auto-fills from where the last leg leaves you. **Start planning**
    saves the trip as a **draft** and opens the planner.
-2. **Plan per destination.** A navigator picks a **destination** (or **Review**).
-   For the selected stop you see **its budget** (its own cap, else an even share
-   of what's left) and add its items — **Flight / Hotel / Activity / Restaurant**
-   (auto-assigned to that stop; **day optional**; cost in any currency, converted
-   to the home currency; restaurants marked as estimates). Costs are hand-typed
-   now; **auto-search** fills them in Phase 3 (§11), always user-editable.
+2. **Plan per destination — step wizard (revised 2026-09-08).** You plan **city
+   by city**; within a city a **Next/Back** wizard steps through **Activities →
+   Flight/Hotel → Restaurants**, with the **waterfall budget bar on top** and the
+   destination's **time frame** shown. Activities come first (they anchor the
+   budget); the Flight/Hotel step reflects the stop's need-flight/hotel flags.
+   Items are auto-assigned to the stop; **cost is optional** (blank = TBD, counts
+   as 0 until filled); **day optional**; any currency → home; restaurants marked as
+   estimates. Costs are hand-typed now; **auto-search** fills them in Phase 3
+   (§11), always user-editable. **Next** past the last stop opens **Review**.
 3. **Review.** The whole-trip plan and running budget; finish with **Save as
    draft** or **Finalize**.
 4. **Receipts.** Finalized trips only — expand for the **read-only** plan +
@@ -195,9 +198,10 @@ Three tabs:
 
 1. **Plan** — everything about creating and editing a trip. Not planning:
    **Plan a trip** (new), **Drafts** (Edit / Delete), **Edit a finalized trip**
-   (pick → edit). Planning: the **per-destination** planner + **Review** (Save as
-   draft / Finalize). Item prices are **user-editable** inline. Editing always
-   stays in this tab (no tab-hopping).
+   (pick → edit). Editing opens a **Setup** view (name / budget / destinations),
+   then **Start planning** enters the **per-city step wizard** (Activities →
+   Flight/Hotel → Restaurants) and **Review** (Save as draft / Finalize). Item
+   prices are **user-editable** inline. Editing always stays in this tab.
 
 2. **Receipts** — **finalized trips only**, read-only: expand for the full plan +
    budget, then **Delete** (confirm). (Ratings / preferred marks on an opened

@@ -195,6 +195,17 @@ def create_trip(
     return trip_id
 
 
+def update_trip(trip_id: int, name: str, home_currency: str, budget_cap: Decimal | None) -> None:
+    """Edit a trip's top-level fields (name, home currency, budget cap)."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE trips SET name=%s, home_currency=%s, budget_cap=%s WHERE id=%s",
+            (name.strip(), home_currency, budget_cap, trip_id),
+        )
+    logger.info("Updated trip %s '%s'", trip_id, name.strip())
+
+
 def set_trip_status(trip_id: int, status: str) -> None:
     """Move a trip between 'draft' and 'final'."""
     conn = get_connection()
@@ -267,6 +278,35 @@ def update_leg(leg_id: int, leg: DraftLeg) -> None:
         )
 
 
+def add_leg(trip_id: int, leg: DraftLeg) -> None:
+    """Append a destination (leg) to an existing trip (position = current count)."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM legs WHERE trip_id = %s", (trip_id,))
+        row = cur.fetchone()
+        assert row is not None
+        cur.execute(
+            "INSERT INTO legs (trip_id, city, country, from_city, from_country, "
+            "start_date, end_date, need_flight, need_hotel, round_trip, budget_cap, "
+            "position) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                trip_id,
+                leg.city.strip(),
+                leg.country.strip() or None,
+                leg.from_city.strip() or None,
+                leg.from_country.strip() or None,
+                leg.start_date,
+                leg.end_date,
+                leg.need_flight,
+                leg.need_hotel,
+                leg.round_trip,
+                leg.budget_cap,
+                row[0],
+            ),
+        )
+    logger.info("Added leg to trip %s (%s)", trip_id, leg.city.strip())
+
+
 def delete_leg(leg_id: int) -> None:
     """Delete a saved destination (leg); its items cascade."""
     conn = get_connection()
@@ -280,11 +320,12 @@ def add_item(
     leg_id: int | None,
     category: str,
     name: str,
-    cost: Decimal,
+    cost: Decimal | None,
     currency: str,
     on_date: date | None,
 ) -> int:
-    """Insert one planned item (cost in its original `currency`); return its id."""
+    """Insert one planned item (cost in its original `currency`, or None = TBD);
+    return its id."""
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute(
@@ -311,8 +352,8 @@ def list_items(trip_id: int) -> list[dict]:
         return cur.fetchall()
 
 
-def update_item(item_id: int, cost: Decimal, currency: str, on_date: date | None) -> None:
-    """Edit an item's cost, currency, and date."""
+def update_item(item_id: int, cost: Decimal | None, currency: str, on_date: date | None) -> None:
+    """Edit an item's cost (None = TBD), currency, and date."""
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute(

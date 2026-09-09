@@ -63,10 +63,11 @@ APIs yet. (Reorganized 2026-09-03 to match the guided flow, PRD §9.)
 Goal: a clear draft→finalize flow (PRD §9, as built), still **manual entry** —
 search is layered on in Phase 3. All create/edit lives in the **Plan** tab.
 
-- [x] **Per-destination planner:** after **Start planning**, a navigator picks a
-      destination (or **Review**); each stop shows **its budget** and adds its
-      **Flight / Hotel / Activity / Restaurant** items (auto-assigned to the stop,
-      day optional, any currency → home).
+- [x] **Per-city step wizard** (revised 2026-09-08): plan **city by city**; within
+      a city a **Next/Back** wizard steps **Activities → Flight/Hotel → Restaurants**
+      (waterfall bar on top, destination time frame shown), then **Review**. Items
+      auto-assigned to the stop; **cost optional (TBD)**; day optional; any
+      currency → home. (Replaced the per-destination radio navigator.)
 - [x] **Draft persistence:** **Start planning** saves a **draft**; **Review** ends
       with **Save as draft** or **Finalize** (PRD §9).
 - [x] **Editing in the Plan tab:** **Drafts** (Edit / Delete) and **Edit a
