@@ -2,11 +2,10 @@
 
 from lets_go.budget import (
     budget_progress,
-    flight_hotel_default,
+    flight_hotel_ceilings,
     is_over_budget,
     remaining_budget,
     total_spent,
-    waterfall_budget,
 )
 
 
@@ -50,35 +49,25 @@ def test_budget_progress_zero_cap_zero_spent_is_empty():
     assert budget_progress(0.0, 0.0) == 0.0
 
 
-def test_waterfall_splits_after_activities():
-    # 2000 cap, 500 activities -> 1500 left; choose 900 for flight+hotel -> 600 food
-    wb = waterfall_budget(2000.0, 500.0, 900.0)
-    assert wb.after_activities == 1500.0
-    assert wb.flight_hotel_alloc == 900.0
-    assert wb.food_remainder == 600.0
+def test_ceilings_both_needed_no_caps_split_half():
+    assert flight_hotel_ceilings(2000.0, None, None, True, True) == (1000.0, 1000.0)
 
 
-def test_waterfall_allocation_clamped_to_whats_left():
-    # asking 2000 for flight+hotel when only 1500 is left caps it at 1500, food 0
-    wb = waterfall_budget(2000.0, 500.0, 2000.0)
-    assert wb.flight_hotel_alloc == 1500.0
-    assert wb.food_remainder == 0.0
+def test_ceilings_only_hotel_takes_whole_budget():
+    assert flight_hotel_ceilings(1000.0, None, None, False, True) == (None, 1000.0)
 
 
-def test_waterfall_no_allocation_leaves_all_for_food():
-    wb = waterfall_budget(2000.0, 500.0, 0.0)
-    assert wb.flight_hotel_alloc == 0.0
-    assert wb.food_remainder == 1500.0
+def test_ceilings_only_flight_takes_whole_budget():
+    assert flight_hotel_ceilings(1000.0, None, None, True, False) == (1000.0, None)
 
 
-def test_flight_hotel_default_is_half_the_city_budget():
-    assert flight_hotel_default(2000.0) == 1000.0
+def test_ceilings_flight_cap_leaves_rest_for_hotel():
+    assert flight_hotel_ceilings(2000.0, 1200.0, None, True, True) == (1200.0, 800.0)
 
 
-def test_waterfall_activities_over_cap_zeroes_the_rest():
-    # activities blew the cap: after_activities is the true (negative) overage,
-    # but nothing is usable for flight+hotel or food
-    wb = waterfall_budget(1000.0, 1200.0, 300.0)
-    assert wb.after_activities == -200.0
-    assert wb.flight_hotel_alloc == 0.0
-    assert wb.food_remainder == 0.0
+def test_ceilings_both_caps_are_used_as_is():
+    assert flight_hotel_ceilings(2000.0, 900.0, 1000.0, True, True) == (900.0, 1000.0)
+
+
+def test_ceilings_neither_needed_is_none():
+    assert flight_hotel_ceilings(2000.0, None, None, False, False) == (None, None)

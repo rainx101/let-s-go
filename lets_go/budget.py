@@ -1,16 +1,15 @@
 """Budget math for a trip. Pure functions — no Streamlit or DB, so they're
-easy to test. All amounts are assumed to already be in the trip's home currency
-(PRD: single cap, whole trip, one home currency)."""
+easy to test. All amounts are assumed to already be in the trip's home currency."""
 
 from typing import NamedTuple
 
 
-class WaterfallBudget(NamedTuple):
-    """The three stage figures of the waterfall (PRD §6)."""
+class FlightHotelCeilings(NamedTuple):
+    """Per-item search ceilings from a city's flight+hotel budget (PRD §6).
+    A field is None when that item isn't needed for the stop."""
 
-    after_activities: float  # cap - activities; the true (maybe negative) overage
-    flight_hotel_alloc: float  # chosen amount, clamped to what's left after activities
-    food_remainder: float  # what's left for food after the flight+hotel allocation
+    flight: float | None
+    hotel: float | None
 
 
 def total_spent(costs: list[float]) -> float:
@@ -36,19 +35,29 @@ def budget_progress(cap: float, spent: float) -> float:
     return min(spent / cap, 1.0)
 
 
-def flight_hotel_default(city_budget: float) -> float:
-    """A city's default flight+hotel budget = half its budget (PRD §6). The user
-    can override it; the Phase 3 hotel search obeys the result as its ceiling."""
-    return city_budget / 2
+def flight_hotel_ceilings(
+    budget: float,
+    flight_cap: float | None,
+    hotel_cap: float | None,
+    need_flight: bool,
+    need_hotel: bool,
+) -> FlightHotelCeilings:
+    """Split a city's flight+hotel budget into per-item search ceilings (PRD §6).
 
-
-def waterfall_budget(
-    cap: float, activities_spent: float, flight_hotel_alloc: float
-) -> WaterfallBudget:
-    """Split the cap in flow order (PRD §6): activities off the top, then the
-    chosen flight+hotel allocation, then food gets the remainder. The allocation
-    is clamped to what's actually left after activities."""
-    after_activities = cap - activities_spent
-    usable = max(after_activities, 0.0)
-    alloc = min(max(flight_hotel_alloc, 0.0), usable)
-    return WaterfallBudget(after_activities, alloc, usable - alloc)
+    A set cap wins. Otherwise: if only one of flight/hotel is needed it takes the
+    whole budget; if both are needed the (un-capped) side gets what's left after
+    the capped one, or half each when neither is capped. Not-needed → None."""
+    if not need_flight and not need_hotel:
+        return FlightHotelCeilings(None, None)
+    if need_flight and not need_hotel:
+        return FlightHotelCeilings(flight_cap if flight_cap is not None else budget, None)
+    if need_hotel and not need_flight:
+        return FlightHotelCeilings(None, hotel_cap if hotel_cap is not None else budget)
+    if flight_cap is not None and hotel_cap is not None:
+        return FlightHotelCeilings(flight_cap, hotel_cap)
+    if flight_cap is not None:
+        return FlightHotelCeilings(flight_cap, max(budget - flight_cap, 0.0))
+    if hotel_cap is not None:
+        return FlightHotelCeilings(max(budget - hotel_cap, 0.0), hotel_cap)
+    half = budget / 2
+    return FlightHotelCeilings(half, half)

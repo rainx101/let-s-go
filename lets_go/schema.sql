@@ -41,9 +41,14 @@ CREATE TABLE IF NOT EXISTS legs (
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_city TEXT;
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_country TEXT;
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS budget_cap NUMERIC(12, 2);
--- Per-city flight+hotel budget (PRD §6, 2026-09-08). NULL = default to half the
--- city's budget; the Phase 3 hotel search obeys this as its ceiling.
+-- flight_hotel_budget: DORMANT since 2026-09-08b. The flight+hotel budget is now
+-- the stop's budget (budget_cap, else even share of the trip cap); activities and
+-- food are extras (PRD §6). Column kept to avoid a destructive drop.
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS flight_hotel_budget NUMERIC(12, 2);
+-- Optional per-item search ceilings within the flight+hotel budget (PRD §6).
+-- NULL = split the budget (½/½, or the whole budget when only one is needed).
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS flight_cap NUMERIC(12, 2);
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS hotel_cap NUMERIC(12, 2);
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS round_trip BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS items (
