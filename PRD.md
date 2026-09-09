@@ -74,24 +74,23 @@ so they resurface next time with a "liked before" mark; restaurants are rated
 - **Trip type (revised 2026-09-03):** **round-trip** or **one-way**, on top of
   multi-city. Round-trip includes a **return flight to the origin** (its own
   date); one-way ends at the final destination.
-- **Budget allocation — per-city waterfall (revised 2026-09-08):** spent in flow
-  order, per destination, with **two adjustable levers**.
-  - **Level 1 — the city's budget:** each destination's **cap** (set in Setup),
-    else an **even share** of the trip cap (`trip cap ÷ number of cities`).
-    Adjustable per destination.
-  - **Level 2 — the flight+hotel slice within that city's budget:** **defaults to
-    half** the city's budget, and is **adjustable** (type a number in the city's
-    Step 2 to override the half). This Level-2 number is the **ceiling the Phase 3
-    flight/hotel search obeys** ("find flights + a hotel under $X").
-  - **Order within a city:** **Activities** off the top → **Flight + hotel**
-    (its Level-2 budget) → **Restaurants / food** get the **remainder**. If a
-    city's activities already cost more than its non-flight half, the flight+hotel
-    slice is **clamped** to what's actually left, so you never plan past the city's
-    budget.
-  The **budget header shows all three stages** while planning that city. (Earlier
-  the waterfall was whole-trip with a single manually-chosen flight+hotel amount
-  and no default; superseded 2026-09-08 by this per-city, half-default model to
-  match the city-by-city step wizard.)
+- **Budget = flight + hotel; activities & food are extras (revised 2026-09-08b):**
+  the budget the user sets is the **flight + hotel budget** — the amount for
+  getting there and sleeping, and the **ceiling the Phase 3 search obeys**. Set
+  **per destination** (each stop has its own flight+hotel budget; a POI-anchored
+  hotel per city).
+  - **Flight and hotel are separate steps, each shown only if that stop needs it**
+    (need-flight / need-hotel). Optionally enter a **cap for each**; if blank, the
+    flight+hotel budget **splits in half** as the two starting search ceilings; if
+    **only one is needed, it takes the whole budget** (the driving-to-Disney case:
+    no flight → the hotel gets it all).
+  - **Activities and food are extras** — added freely, tracked in a running total
+    **on top** of the flight+hotel budget, **not capped** and not pre-allocated.
+    (Food does not get a fixed slice; it's whatever you add.)
+  - The budget header shows the flight+hotel budget with the flight/hotel ceilings,
+    plus the extras total. (Supersedes the 2026-09-08 per-city *waterfall*
+    — activities-off-the-top → flight+hotel → food-remainder — which gave food an
+    arbitrary half and never produced a clean per-item search ceiling.)
 - **Currency:** one **home currency** chosen by the user; all costs convert to it
   and the budget cap is in it.
 - **Recommendation results display:** **preferred / "liked before" shown on top
@@ -198,15 +197,17 @@ creating/editing happens in the **Plan** tab; **Receipts** holds finalized trips
    budget**, and need-flight/hotel flags. Destinations are editable, and the next
    card's "From" auto-fills from where the last leg leaves you. **Start planning**
    saves the trip as a **draft** and opens the planner.
-2. **Plan per destination — step wizard (revised 2026-09-08).** You plan **city
-   by city**; within a city a **Next/Back** wizard steps through **Activities →
-   Flight/Hotel → Restaurants**, with the **waterfall budget bar on top** and the
-   destination's **time frame** shown. Activities come first (they anchor the
-   budget); the Flight/Hotel step reflects the stop's need-flight/hotel flags.
-   Items are auto-assigned to the stop; **cost is optional** (blank = TBD, counts
-   as 0 until filled); **day optional**; any currency → home; restaurants marked as
-   estimates. Costs are hand-typed now; **auto-search** fills them in Phase 3
-   (§11), always user-editable. **Next** past the last stop opens **Review**.
+2. **Plan per destination — step wizard (revised 2026-09-08b).** You plan **city
+   by city**; within a city a **Next/Back** wizard steps through **Flight → Hotel
+   → Activities → Food**, showing the **flight+hotel budget bar on top** and the
+   destination's **time frame**. **Flight and Hotel are separate steps, shown only
+   if the stop needs them** (need-flight/hotel), and each can take an optional cap
+   (else the budget splits ½/½; one-needed takes all). **Activities and food are
+   extras** added on top (§6). Items are auto-assigned to the stop; **cost is
+   optional** (blank = TBD); **day optional**; any currency → home; restaurants
+   marked as estimates. Costs are hand-typed now; **auto-search** (incl. the
+   anchor-ranked hotel search, §6) fills them in Phase 3, always user-editable.
+   **Next** past the last stop opens **Review**.
 3. **Review.** The whole-trip plan and running budget; finish with **Save as
    draft** or **Finalize**.
 4. **Receipts.** Finalized trips only — expand for the **read-only** plan +

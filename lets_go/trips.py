@@ -214,13 +214,15 @@ def set_trip_status(trip_id: int, status: str) -> None:
     logger.info("Trip %s status -> %s", trip_id, status)
 
 
-def set_leg_flight_hotel_budget(leg_id: int, amount: Decimal | None) -> None:
-    """Set (or clear) a destination's flight+hotel budget; None = default to half
-    the city's budget (PRD §6, per-city waterfall)."""
+def set_leg_cap(leg_id: int, field: str, amount: Decimal | None) -> None:
+    """Set (or clear) a per-item search ceiling on a destination. `field` is
+    'flight_cap' or 'hotel_cap'; None means split the flight+hotel budget (PRD §6)."""
+    if field not in ("flight_cap", "hotel_cap"):
+        raise ValueError(f"unknown cap field: {field}")
     conn = get_connection()
     with conn.cursor() as cur:
-        cur.execute("UPDATE legs SET flight_hotel_budget = %s WHERE id = %s", (amount, leg_id))
-    logger.info("Leg %s flight+hotel budget -> %s", leg_id, amount)
+        cur.execute(f"UPDATE legs SET {field} = %s WHERE id = %s", (amount, leg_id))
+    logger.info("Leg %s %s -> %s", leg_id, field, amount)
 
 
 def delete_trip(trip_id: int) -> None:
@@ -242,7 +244,7 @@ def list_trips() -> list[dict]:
         trips = cur.fetchall()
         cur.execute(
             "SELECT id, trip_id, city, country, from_city, from_country, start_date, end_date, "
-            "need_flight, need_hotel, round_trip, budget_cap, flight_hotel_budget, position "
+            "need_flight, need_hotel, round_trip, budget_cap, flight_cap, hotel_cap, position "
             "FROM legs ORDER BY position"
         )
         legs = cur.fetchall()

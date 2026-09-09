@@ -6,6 +6,46 @@ step**.
 
 ---
 
+## 2026-09-08 — Built: budget = flight + hotel; activities & food are extras
+
+**What we did** (implements the decision below; supersedes the per-city waterfall)
+- The **budget is flight + hotel** (a stop's budget, i.e. its per-stop
+  cap else even share of the trip's flight+hotel budget). **Activities and food are
+  extras** — added freely, shown as a running total on top, **not capped**.
+- **Flight and Hotel are separate wizard steps, shown only when the stop needs
+  them** (dynamic `_leg_steps`): Flight → Hotel → Activities → Food. Each of
+  flight/hotel takes an **optional cap** (in its step); blank → the budget **splits
+  ½/½**, and when **only one is needed it takes the whole budget** (driving to
+  Disney: no flight → hotel gets it all).
+- Pure `flight_hotel_ceilings(budget, flight_cap, hotel_cap, need_flight,
+  need_hotel)` replaces `waterfall_budget`/`flight_hotel_default`. The city budget
+  bar shows the flight/hotel ceilings + the extras total; Review splits flight+hotel
+  vs extras.
+- Data: `legs.flight_cap` + `legs.hotel_cap` (idempotent, nullable) + `set_leg_cap`
+  (whitelisted field). `legs.flight_hotel_budget` now dormant. Setup labels the
+  budget "Flight + hotel budget".
+- Verified: ruff/ty/pytest green (67 tests, 6 new ceilings tests); live round-trip
+  (caps set independently, bad field rejected); **AppTest** — hotel-only trip omits
+  the Flight step and hotel takes the whole budget; flight+hotel trip shows both
+  steps split ½; an activity shows as an extra.
+
+## 2026-09-08 — Decision: budget = flight + hotel; activities & food are extras
+
+**What we decided** (docs/mockup only — PRD §6/§9, memory; supersedes the waterfall)
+- The budget the user sets = the **flight + hotel budget** (per destination) = the
+  ceiling the Phase 3 search obeys. **Flight and hotel are separate steps, shown
+  only if that stop needs them**; each takes an optional cap, else the budget
+  **splits ½/½**; if only one is needed it takes the **whole** budget (driving to
+  Disney: no flight → hotel gets it all).
+- **Activities and food are extras** — added freely, tracked in a running total on
+  top, **not capped and not pre-allocated**. Removes the arbitrary food-half.
+- Supersedes the just-built **per-city waterfall** (activities off the top →
+  flight+hotel half → food remainder). Mockup updated: `docs/mockups/plan-flow.html`.
+- **To build:** rework `_city_waterfall` into a flight+hotel budget view with the
+  flight/hotel caps + extras total; make Flight/Hotel separate wizard steps shown
+  per need; reorder to Flight → Hotel → Activities → Food. The per-leg
+  `flight_hotel_budget` storage is reused.
+
 ## 2026-09-08 — Built: per-city flight+hotel budget (half-default)
 
 **What we did** (implements the 2026-09-08 decision, PRD §6)

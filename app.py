@@ -7,12 +7,12 @@ import streamlit as st
 
 from lets_go.auth import require_login
 from lets_go.budget import (
+    FlightHotelCeilings,
     budget_progress,
-    flight_hotel_default,
+    flight_hotel_ceilings,
     is_over_budget,
     remaining_budget,
     total_spent,
-    waterfall_budget,
 )
 from lets_go.currency import convert, currency_for_country, live_rates_or_static
 from lets_go.db import health_check, init_db
@@ -31,7 +31,7 @@ from lets_go.trips import (
     list_items,
     list_trips,
     normalize_place,
-    set_leg_flight_hotel_budget,
+    set_leg_cap,
     set_trip_status,
     update_item,
     update_leg,
@@ -63,18 +63,21 @@ CATEGORY_LABEL = {
 }
 ALL_CATEGORIES = ["spot", "flight", "hotel", "restaurant"]
 
-# The per-city wizard: (title, categories added in this step, hint). Activities
-# come first — they anchor the waterfall budget (PRD §6).
-WIZARD_STEPS: list[tuple[str, list[str], str]] = [
-    (
-        "Activities",
-        ["spot"],
-        "Optional — type a place even with no price yet. What you spend here is "
-        "the 🎯 Activities budget up top.",
-    ),
-    ("Flight & hotel", ["flight", "hotel"], "Planned against what's left after activities."),
-    ("Restaurants", ["restaurant"], "Add by hand with an estimated cost (marked est.)."),
-]
+# The budget covers flight + hotel; activities and food are extras added on top
+# (PRD §6). Each step adds one category; flight/hotel steps show only when needed.
+STEP_TITLE = {"flight": "Flight", "hotel": "Hotel", "spot": "Activities", "restaurant": "Food"}
+
+
+def _leg_steps(leg: dict) -> list[str]:
+    """Wizard step categories for a stop: Flight/Hotel only when needed, then the
+    Activities and Food extras."""
+    steps = []
+    if leg["need_flight"]:
+        steps.append("flight")
+    if leg["need_hotel"]:
+        steps.append("hotel")
+    return [*steps, "spot", "restaurant"]
+
 
 plan_tab, receipts_tab, restaurants_tab = st.tabs(["Plan", "Receipts", "Restaurants by city"])
 
@@ -244,66 +247,75 @@ def _budget_line(spent: float, cap: Decimal | None, home: str, label: str = "Spe
         st.caption(f"{label}: {spent:,.2f} {home}")
 
 
-def _save_leg_fh_cb(leg_id: int, key: str) -> None:
-    raw = st.session_state.get(key)
-    set_leg_flight_hotel_budget(leg_id, Decimal(str(raw)) if raw is not None else None)
-
-
 def _stage_spent(items: list[dict], home: str, categories: set[str]) -> float:
     return total_spent(
         [float(_home_amount(it, home)) for it in items if it["category"] in categories]
     )
 
 
-def _city_fh_alloc(leg: dict, city_budget: Decimal) -> float:
-    """This city's flight+hotel budget: its own value, else half the city budget."""
-    stored = leg.get("flight_hotel_budget")
-    return float(stored) if stored is not None else flight_hotel_default(float(city_budget))
-
-
-def _city_waterfall(trip: dict, leg: dict, items: list[dict], home: str) -> None:
-    """This city's budget in flow order (PRD §6): activities off the top, then the
-    city's flight+hotel budget (its own, else half the city budget), then food gets
-    the remainder. Falls back to a plain stop total when the city has no budget."""
-    leg_items = [it for it in items if it["leg_id"] == leg["id"]]
-    activities = _stage_spent(leg_items, home, {"spot"})
-    fh_spent = _stage_spent(leg_items, home, {"flight", "hotel"})
-    food_spent = _stage_spent(leg_items, home, {"restaurant"})
-    city_budget = _stop_budget(trip, leg)
-    if city_budget is None or float(city_budget) <= 0:
-        _budget_line(activities + fh_spent + food_spent, city_budget, home, "This stop")
-        return
-    alloc = _city_fh_alloc(leg, city_budget)
-    wb = waterfall_budget(float(city_budget), activities, alloc)
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        _budget_line(activities, city_budget, home, "🎯 Activities")
-    with c2:  # clamped to what's left after activities (PRD §6)
-        _budget_line(fh_spent, Decimal(str(wb.flight_hotel_alloc)), home, "✈️🏨 Flight + hotel")
-    with c3:
-        _budget_line(food_spent, Decimal(str(wb.food_remainder)), home, "🍽️ Food")
-
-
-def _city_fh_input(trip: dict, leg: dict) -> None:
-    """Editable flight+hotel budget for this city (Step 2), defaulting to half the
-    city's budget. Saved on the leg; the Phase 3 hotel search obeys it as a ceiling."""
-    city_budget = _stop_budget(trip, leg)
-    if city_budget is None or float(city_budget) <= 0:
-        return
-    half = flight_hotel_default(float(city_budget))
-    stored = leg.get("flight_hotel_budget")
-    key = f"legfhb_{leg['id']}"
-    label = (
-        f"{leg['city']} flight + hotel budget — default half = {half:,.0f} {trip['home_currency']}"
+def _leg_ceilings(trip: dict, leg: dict) -> FlightHotelCeilings:
+    """This stop's flight/hotel search ceilings from its flight+hotel budget."""
+    budget = _stop_budget(trip, leg)  # the stop's budget IS the flight+hotel budget
+    if budget is None or float(budget) <= 0:
+        return FlightHotelCeilings(None, None)
+    fc, hc = leg.get("flight_cap"), leg.get("hotel_cap")
+    return flight_hotel_ceilings(
+        float(budget),
+        float(fc) if fc is not None else None,
+        float(hc) if hc is not None else None,
+        leg["need_flight"],
+        leg["need_hotel"],
     )
+
+
+def _city_budget_bar(trip: dict, leg: dict, items: list[dict], home: str) -> None:
+    """Budget = flight + hotel (with per-item ceilings); activities & food are
+    extras shown on top, not capped (PRD §6)."""
+    leg_items = [it for it in items if it["leg_id"] == leg["id"]]
+    budget = _stop_budget(trip, leg)
+    ceil = _leg_ceilings(trip, leg)
+    stages = []
+    if ceil.flight is not None:
+        stages.append(("✈️ Flight", _stage_spent(leg_items, home, {"flight"}), ceil.flight))
+    if ceil.hotel is not None:
+        stages.append(("🏨 Hotel", _stage_spent(leg_items, home, {"hotel"}), ceil.hotel))
+    if budget is not None and float(budget) > 0:
+        st.caption(f"✈️🏨 **Flight + hotel budget: {float(budget):,.0f} {home}**")
+    if stages:
+        for col, (label, spent, ceiling) in zip(st.columns(len(stages)), stages, strict=True):
+            with col:
+                _budget_line(spent, Decimal(str(ceiling)), home, label)
+    activities = _stage_spent(leg_items, home, {"spot"})
+    food = _stage_spent(leg_items, home, {"restaurant"})
+    st.caption(
+        f"➕ Extras (on top, not capped): 🎯 {activities:,.0f} · 🍽️ {food:,.0f} "
+        f"= **{activities + food:,.0f} {home}**"
+    )
+
+
+def _save_leg_cap_cb(leg_id: int, field: str, key: str) -> None:
+    raw = st.session_state.get(key)
+    set_leg_cap(leg_id, field, Decimal(str(raw)) if raw is not None else None)
+
+
+def _cap_input(trip: dict, leg: dict, field: str) -> None:
+    """Optional flight/hotel cap for this stop; blank = the split default shown."""
+    budget = _stop_budget(trip, leg)
+    if budget is None or float(budget) <= 0:
+        return
+    which = "Flight" if field == "flight_cap" else "Hotel"
+    ceil = _leg_ceilings(trip, leg)
+    default = ceil.flight if field == "flight_cap" else ceil.hotel
+    stored = leg.get(field)
+    key = f"legcap_{field}_{leg['id']}"
     st.number_input(
-        label,
+        f"{which} budget cap — blank uses {default:,.0f} {trip['home_currency']}",
         min_value=0.0,
         value=float(stored) if stored is not None else None,
-        placeholder=f"{half:,.0f}",
+        placeholder=f"{default:,.0f}",
         key=key,
-        on_change=_save_leg_fh_cb,
-        args=(leg["id"], key),
+        on_change=_save_leg_cap_cb,
+        args=(leg["id"], field, key),
     )
 
 
@@ -377,7 +389,7 @@ def _leg_field_widgets(prefix: str) -> None:
     dc1.date_input("Start date", key=f"{prefix}start")
     dc2.date_input("End date", key=f"{prefix}end")
     st.number_input(
-        "Budget cap for this stop (optional)",
+        "Flight + hotel budget for this stop (optional)",
         min_value=0.0,
         step=100.0,
         placeholder="e.g. 500",
@@ -447,7 +459,7 @@ def _reset_plan_ui() -> None:
     """Clear transient per-leg / setup widget state so nothing (an open edit form,
     a stale destination pick) carries over between planning sessions."""
     g = st.session_state
-    prefixes = ("editleg_", "delleg_", "legerr_", "legfhb_", "su_", "suadd_")
+    prefixes = ("editleg_", "delleg_", "legerr_", "legcap_", "su_", "suadd_")
     for k in [k for k in g if k.startswith(prefixes)]:
         del g[k]
     for k in ("plan_dest", "plan_step", "plan_review"):
@@ -520,7 +532,7 @@ def _save_setup_details(trip: dict) -> bool:
     if not name.strip():
         errors.append("Trip needs a name.")
     if cap is None:
-        errors.append("Set a budget cap for the trip.")
+        errors.append("Set a flight + hotel budget for the trip.")
     if errors:
         st.session_state["su_errors"] = errors
         return False
@@ -551,7 +563,11 @@ def _render_trip_setup(trip: dict) -> None:
     c1, c2 = st.columns(2)
     c1.selectbox("Home currency", CURRENCIES, key=f"su_ccy_{tid}")
     c2.number_input(
-        "Budget cap", min_value=0.0, step=100.0, placeholder="e.g. 2000", key=f"su_budget_{tid}"
+        "Flight + hotel budget",
+        min_value=0.0,
+        step=100.0,
+        placeholder="e.g. 2000",
+        key=f"su_budget_{tid}",
     )
 
     st.subheader("Destinations")
@@ -611,8 +627,20 @@ def _render_review(trip: dict) -> None:
     tid = trip["id"]
     home = trip["home_currency"]
     st.subheader("📋 Review & finalize")
-    spent = _stage_spent(list_items(tid), home, set(ALL_CATEGORIES))
-    _budget_line(spent, trip["budget_cap"], home, "Trip total")
+    items = list_items(tid)
+    fh_spent = _stage_spent(items, home, {"flight", "hotel"})
+    extras = _stage_spent(items, home, {"spot", "restaurant"})
+    total_budget = sum(float(_stop_budget(trip, leg) or 0) for leg in trip["legs"])
+    _budget_line(
+        fh_spent,
+        Decimal(str(total_budget)) if total_budget > 0 else None,
+        home,
+        "✈️🏨 Flight + hotel",
+    )
+    st.caption(
+        f"➕ Extras (activities + food): {extras:,.2f} {home}  ·  "
+        f"Trip total {fh_spent + extras:,.2f} {home}"
+    )
     _legs_summary(trip["legs"])
     _item_manager(trip, show_add=False, tag="rev")
     st.divider()
@@ -654,7 +682,7 @@ def _render_steps(trip: dict) -> None:
         _render_review(trip)
         return
 
-    # Plan city by city; within a city, step Activities → Flight/hotel → Restaurants.
+    # Plan city by city; within a city, step Flight → Hotel → Activities → Food.
     ids = [leg["id"] for leg in legs]
     if st.session_state.get("plan_dest") not in ids:
         st.session_state["plan_dest"] = ids[0]
@@ -676,14 +704,16 @@ def _render_steps(trip: dict) -> None:
     )
     leg = next(leg_ for leg_ in legs if leg_["id"] == st.session_state["plan_dest"])
     i = ids.index(leg["id"])
-    step = st.session_state["plan_step"]
+    steps = _leg_steps(leg)  # Flight?/Hotel? + Activities + Food
+    step = min(st.session_state["plan_step"], len(steps) - 1)
 
-    _city_waterfall(trip, leg, items, home)  # this city's budget, on top
+    _city_budget_bar(trip, leg, items, home)  # flight+hotel budget + extras, on top
 
     def _go_next() -> None:
-        s, idx = st.session_state["plan_step"], ids.index(st.session_state["plan_dest"])
-        if s < 2:
-            st.session_state["plan_step"] = s + 1
+        idx = ids.index(st.session_state["plan_dest"])
+        n = len(_leg_steps(legs[idx]))
+        if st.session_state["plan_step"] < n - 1:
+            st.session_state["plan_step"] += 1
         elif idx < len(ids) - 1:
             st.session_state["plan_dest"] = ids[idx + 1]
             st.session_state["plan_step"] = 0
@@ -691,38 +721,34 @@ def _render_steps(trip: dict) -> None:
             st.session_state["plan_review"] = True
 
     def _go_back() -> None:
-        s, idx = st.session_state["plan_step"], ids.index(st.session_state["plan_dest"])
-        if s > 0:
-            st.session_state["plan_step"] = s - 1
+        idx = ids.index(st.session_state["plan_dest"])
+        if st.session_state["plan_step"] > 0:
+            st.session_state["plan_step"] -= 1
         elif idx > 0:
             st.session_state["plan_dest"] = ids[idx - 1]
-            st.session_state["plan_step"] = 2
+            st.session_state["plan_step"] = len(_leg_steps(legs[idx - 1])) - 1
 
-    title, cats, hint = WIZARD_STEPS[step]
-    st.caption(f"Step {step + 1} of 3 · {leg['city']} · {_leg_span(leg)}")
-    st.subheader(title)
-    if step == 1:  # flight/hotel step reflects this stop's needs
-        flags = (("✈️ flight", leg["need_flight"]), ("🏨 hotel", leg["need_hotel"]))
-        needs = [n for n, on in flags if on]
-        st.caption(
-            "Marked as needed: " + ", ".join(needs)
-            if needs
-            else "Not marked as needing a flight or hotel — add one anyway if you like."
-        )
-        _city_fh_input(trip, leg)
+    cat = steps[step]
+    st.caption(f"Step {step + 1} of {len(steps)} · {leg['city']} · {_leg_span(leg)}")
+    st.subheader(STEP_TITLE[cat])
+    if cat == "flight":
+        _cap_input(trip, leg, "flight_cap")
+    elif cat == "hotel":
+        _cap_input(trip, leg, "hotel_cap")
     else:
-        st.caption(hint)
+        st.caption("Extra — added on top of the flight+hotel budget, not capped.")
 
     _item_manager(
-        trip, show_add=True, categories=cats, tag=f"s{step}d{leg['id']}", fixed_leg_id=leg["id"]
+        trip, show_add=True, categories=[cat], tag=f"s{cat}d{leg['id']}", fixed_leg_id=leg["id"]
     )
 
     st.divider()
     bcol, ncol = st.columns(2)
     bcol.button("← Back", key="wiz_back", on_click=_go_back, disabled=(step == 0 and i == 0))
-    if step == 2 and i == len(ids) - 1:
+    last_step = step == len(steps) - 1
+    if last_step and i == len(ids) - 1:
         nlabel = "Review trip →"
-    elif step == 2:
+    elif last_step:
         nlabel = f"Next city: {legs[i + 1]['city']} →"
     else:
         nlabel = "Next →"
@@ -746,7 +772,7 @@ def _render_skeleton() -> None:
     c1, c2 = st.columns(2)
     home_currency = c1.selectbox("Home currency", CURRENCIES, key="trip_currency")
     budget_cap = c2.number_input(
-        "Budget cap",
+        "Flight + hotel budget",
         min_value=0.0,
         step=100.0,
         value=None,
@@ -828,7 +854,7 @@ def _render_skeleton() -> None:
         errors = validate_new_trip(st.session_state.trip_name, draft_legs)
         errors += validate_budget_caps(cap, draft_legs)
         if cap is None:
-            errors.append("Set a budget cap for the trip.")
+            errors.append("Set a flight + hotel budget for the trip.")
         if errors:
             st.session_state.save_errors = errors
             return
