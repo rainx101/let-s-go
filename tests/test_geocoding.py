@@ -2,7 +2,7 @@
 
 from urllib.error import URLError
 
-from lets_go.geocoding import build_query, geocode, geocode_or_none
+from lets_go.geocoding import build_query, geocode, geocode_or_none, place_query
 
 
 # Nominatim's /search returns a JSON list; we use the first result's lat/lon.
@@ -14,6 +14,14 @@ def _fake_results() -> list[dict]:
             "display_name": "Disneyland Park, Anaheim, California, USA",
         }
     ]
+
+
+def test_place_query_joins_ordered_parts():
+    assert place_query("Disneyland", "Anaheim", "USA") == "Disneyland, Anaheim, USA"
+
+
+def test_place_query_drops_blank_and_trims_parts():
+    assert place_query("  Eiffel Tower ", "", "  Paris  ") == "Eiffel Tower, Paris"
 
 
 def test_build_query_joins_city_and_country():

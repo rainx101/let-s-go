@@ -78,6 +78,11 @@ ALTER TABLE items ADD COLUMN IF NOT EXISTS on_date DATE;
 -- Cost is optional (a place you want to go with no price yet → TBD, counts as 0
 -- in the budget until filled). Idempotent: dropping NOT NULL twice is a no-op.
 ALTER TABLE items ALTER COLUMN cost DROP NOT NULL;
+-- Item coordinates: an activity/restaurant's point (geocoded from its name near
+-- the stop's city via OpenStreetMap, else typed) for Phase 3 distance ordering
+-- against the leg's anchor (PRD §6/§8). NULL until located; always user-editable.
+ALTER TABLE items ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS lon DOUBLE PRECISION;
 
 CREATE INDEX IF NOT EXISTS idx_legs_trip ON legs (trip_id);
 CREATE INDEX IF NOT EXISTS idx_items_trip ON items (trip_id);

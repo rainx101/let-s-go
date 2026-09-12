@@ -16,7 +16,7 @@ from lets_go.budget import (
 )
 from lets_go.currency import convert, currency_for_country, live_rates_or_static
 from lets_go.db import health_check, init_db
-from lets_go.geocoding import build_query, geocode_or_none
+from lets_go.geocoding import build_query, geocode_or_none, place_query
 from lets_go.trips import (
     DraftLeg,
     add_item,
@@ -32,6 +32,7 @@ from lets_go.trips import (
     list_items,
     list_trips,
     normalize_place,
+    set_item_location,
     set_leg_anchor,
     set_leg_cap,
     set_trip_status,
@@ -114,7 +115,9 @@ def _home_amount(item: dict, home: str) -> Decimal:
 # --- items (shared by the guided steps and the finalized receipt) ------------
 
 
-def _submit_item_cb(tid: int, categories: list[str], kp: str, fixed_leg_id: int | None) -> None:
+def _submit_item_cb(
+    tid: int, categories: list[str], kp: str, fixed_leg_id: int | None, place: tuple[str, str]
+) -> None:
     g = st.session_state
     name = g[kp + "name"]
     cost = g[kp + "cost"]  # None = TBD (a place with no price yet)
@@ -124,14 +127,55 @@ def _submit_item_cb(tid: int, categories: list[str], kp: str, fixed_leg_id: int 
         g[kp + "err"] = errors
         return
     amount = Decimal(str(cost)) if cost is not None else None
-    add_item(tid, fixed_leg_id, category, name, amount, g[kp + "ccy"], g[kp + "date"])
+    new_id = add_item(tid, fixed_leg_id, category, name, amount, g[kp + "ccy"], g[kp + "date"])
+    if category in ("spot", "restaurant") and (place[0] or place[1]):
+        coords = _geocode(place_query(name, place[0], place[1]))  # locate the place you typed
+        if coords:
+            set_item_location(new_id, coords[0], coords[1])
     g[kp + "err"] = []
     g[kp + "name"] = ""
     g[kp + "cost"] = None  # keep the date so several items can share a day
 
 
+def _save_item_loc_cb(item_id: int, lat_key: str, lon_key: str) -> None:
+    set_item_location(item_id, st.session_state.get(lat_key), st.session_state.get(lon_key))
+
+
+def _item_location_editor(it: dict, place: tuple[str, str]) -> None:
+    """Place-first location for one activity/restaurant — the point used to plan
+    the day by closeness to the anchor (PRD §6/§8). Located from the name when
+    added; the raw coordinates live under 'Adjust' for the rare miss (§11)."""
+    iid = it["id"]
+    lat_key, lon_key = f"iloclat_{iid}", f"iloclon_{iid}"
+    located = it.get("lat") is not None
+    near = f" near {place[0]}" if place[0] else ""
+    st.caption(f"📍 Located{near} — grouped nearby." if located else "📍 Not located yet.")
+    with st.expander("Adjust location", expanded=not located):
+        _coord_inputs(
+            float(it["lat"]) if it.get("lat") is not None else None,
+            float(it["lon"]) if it.get("lon") is not None else None,
+            (lat_key, lon_key),
+            _save_item_loc_cb,
+            (iid, lat_key, lon_key),
+        )
+        if st.button("Locate from name", key=f"iloc_{iid}"):
+            coords = _geocode(place_query(it["name"], place[0], place[1]))
+            if coords is None:
+                st.warning("Couldn't find that place — enter the coordinates by hand.")
+            else:
+                set_item_location(iid, coords[0], coords[1])
+                st.session_state.pop(lat_key, None)  # reseed inputs from the stored value
+                st.session_state.pop(lon_key, None)
+                st.rerun()
+
+
 def _item_row(
-    it: dict, home: str, leg_label: dict, leg_dates: dict, show_where: bool = True
+    it: dict,
+    home: str,
+    leg_label: dict,
+    leg_dates: dict,
+    leg_place: dict,
+    show_where: bool = True,
 ) -> None:
     row, edit, remove = st.columns([6, 1, 1])
     icon = CATEGORY_ICON.get(it["category"], "")
@@ -168,6 +212,9 @@ def _item_row(
             amount = Decimal(str(new_cost)) if new_cost is not None else None
             update_item(it["id"], amount, new_ccy, new_date)
             st.rerun()
+        if it["category"] in ("spot", "restaurant"):
+            st.divider()
+            _item_location_editor(it, leg_place.get(it["leg_id"], ("", "")))
     if remove.button("✕", key=f"rm_item_{it['id']}"):
         delete_item(it["id"])
         st.rerun()
@@ -187,6 +234,7 @@ def _item_manager(
     home = trip["home_currency"]
     leg_label = {leg["id"]: leg["city"] for leg in legs}
     leg_dates = {leg["id"]: (leg["start_date"], leg["end_date"]) for leg in legs}
+    leg_place = {leg["id"]: (leg["city"], leg["country"] or "") for leg in legs}
     items = list_items(tid)
     if fixed_leg_id is not None:
         items = [it for it in items if it["leg_id"] == fixed_leg_id]
@@ -194,7 +242,7 @@ def _item_manager(
 
     if items:
         for it in items:
-            _item_row(it, home, leg_label, leg_dates, show_where=fixed_leg_id is None)
+            _item_row(it, home, leg_label, leg_dates, leg_place, show_where=fixed_leg_id is None)
     else:
         st.caption("Nothing added yet.")
 
@@ -223,7 +271,10 @@ def _item_manager(
     lo, hi = leg_dates.get(fixed_leg_id, (None, None))
     st.date_input("Date (optional)", value=None, min_value=lo, max_value=hi, key=kp + "date")
     st.button(
-        "Add", key=kp + "btn", on_click=_submit_item_cb, args=(tid, categories, kp, fixed_leg_id)
+        "Add",
+        key=kp + "btn",
+        on_click=_submit_item_cb,
+        args=(tid, categories, kp, fixed_leg_id, leg_place.get(fixed_leg_id, ("", ""))),
     )
     for err in st.session_state[kp + "err"]:
         st.error(err)
@@ -473,50 +524,83 @@ def _seed_leg_fields(prefix: str, leg: DraftLeg) -> None:
     g[f"{prefix}cap"] = float(leg.budget_cap) if leg.budget_cap else None
 
 
+def _auto_locate(query: str) -> tuple[float, float] | None:
+    """Geocode a place once per query per session (cached), so it resolves quietly
+    from the name without the user clicking. None on no match / a repeat attempt."""
+    if not query:
+        return None
+    tried = st.session_state.setdefault("geo_tried", set())
+    if query in tried:
+        return None
+    tried.add(query)
+    return _geocode(query)
+
+
 def _save_anchor_cb(leg_id: int, lat_key: str, lon_key: str) -> None:
     lat = st.session_state.get(lat_key)
     lon = st.session_state.get(lon_key)
     set_leg_anchor(leg_id, lat, lon)
 
 
-def _anchor_row(leg: dict) -> None:
-    """Editable anchor coordinates for the stop — the point hotels & activities
-    are ranked by distance from (PRD §6/§7). 'Locate' geocodes the city via
-    OpenStreetMap; the values stay hand-editable (manual fallback, PRD §11)."""
-    lid = leg["id"]
-    lat_key, lon_key = f"anchorlat_{lid}", f"anchorlon_{lid}"
-    st.caption("📍 Anchor — hotels & activities are ranked by distance from this point.")
-    c1, c2, c3 = st.columns([2, 2, 1])
+def _coord_inputs(lat: float | None, lon: float | None, keys, save_cb, args) -> None:
+    """The raw lat/lon fallback pair — the manual override behind 'Adjust'."""
+    lat_key, lon_key = keys
+    c1, c2 = st.columns(2)
     c1.number_input(
         "Latitude",
         min_value=-90.0,
         max_value=90.0,
-        value=float(leg["anchor_lat"]) if leg.get("anchor_lat") is not None else None,
+        value=lat,
         format="%.5f",
         key=lat_key,
-        on_change=_save_anchor_cb,
-        args=(lid, lat_key, lon_key),
+        on_change=save_cb,
+        args=args,
     )
     c2.number_input(
         "Longitude",
         min_value=-180.0,
         max_value=180.0,
-        value=float(leg["anchor_lon"]) if leg.get("anchor_lon") is not None else None,
+        value=lon,
         format="%.5f",
         key=lon_key,
-        on_change=_save_anchor_cb,
-        args=(lid, lat_key, lon_key),
+        on_change=save_cb,
+        args=args,
     )
-    c3.markdown("<div style='height:1.7em'></div>", unsafe_allow_html=True)
-    if c3.button("Locate", key=f"anchorloc_{lid}"):
-        coords = _geocode(build_query(leg["city"], leg.get("country") or ""))
-        if coords is None:
-            st.warning("Couldn't find that place — enter the coordinates by hand.")
-        else:
+
+
+def _anchor_row(leg: dict) -> None:
+    """The stop's map anchor — hotels are searched in a wide range around it and
+    activities are planned near it (PRD §6/§7). Located automatically from the
+    place name; the raw coordinates live under 'Adjust' for the rare miss (§11)."""
+    lid = leg["id"]
+    if leg.get("anchor_lat") is None:
+        coords = _auto_locate(build_query(leg["city"], leg.get("country") or ""))
+        if coords:
             set_leg_anchor(lid, coords[0], coords[1])
-            st.session_state.pop(lat_key, None)  # reseed inputs from the stored value
-            st.session_state.pop(lon_key, None)
-            st.rerun()
+            leg["anchor_lat"], leg["anchor_lon"] = coords  # reflect it this render
+    located = leg.get("anchor_lat") is not None
+    if located:
+        st.caption(f"📍 **{leg['city']}** located — hotels & activities plan around here.")
+    else:
+        st.caption(f"📍 Couldn't locate “{leg['city']}” — set it under **Adjust location**.")
+    lat_key, lon_key = f"anchorlat_{lid}", f"anchorlon_{lid}"
+    with st.expander("Adjust location", expanded=not located):
+        _coord_inputs(
+            float(leg["anchor_lat"]) if leg.get("anchor_lat") is not None else None,
+            float(leg["anchor_lon"]) if leg.get("anchor_lon") is not None else None,
+            (lat_key, lon_key),
+            _save_anchor_cb,
+            (lid, lat_key, lon_key),
+        )
+        if st.button("Locate from place name", key=f"anchorloc_{lid}"):
+            coords = _geocode(build_query(leg["city"], leg.get("country") or ""))
+            if coords is None:
+                st.warning("Couldn't find that place — enter the coordinates by hand.")
+            else:
+                set_leg_anchor(lid, coords[0], coords[1])
+                st.session_state.pop(lat_key, None)  # reseed inputs from the stored value
+                st.session_state.pop(lon_key, None)
+                st.rerun()
 
 
 def _leg_header(leg: dict) -> None:

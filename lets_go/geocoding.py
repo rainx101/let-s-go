@@ -23,10 +23,16 @@ _MIN_INTERVAL_S = 1.0  # Nominatim: at most ~1 request/second.
 _last_call = 0.0
 
 
+def place_query(*parts: str) -> str:
+    """Free-text geocoding query from ordered parts, blanks dropped, e.g.
+    place_query('Disneyland', 'Anaheim', 'USA') -> 'Disneyland, Anaheim, USA'."""
+    return ", ".join(p.strip() for p in parts if p and p.strip())
+
+
 def build_query(city: str, country: str) -> str:
     """Free-text query for a destination anchor, e.g. 'Anaheim, USA'.
     Blank parts are dropped so 'Tokyo' and 'Tokyo, Japan' both work."""
-    return ", ".join(part for part in (city.strip(), country.strip()) if part)
+    return place_query(city, country)
 
 
 def _throttle() -> None:
