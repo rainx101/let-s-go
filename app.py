@@ -16,7 +16,8 @@ from lets_go.budget import (
 )
 from lets_go.currency import convert, currency_for_country, live_rates_or_static
 from lets_go.db import health_check, init_db
-from lets_go.geocoding import build_query, geocode_or_none, place_query
+from lets_go.distance import haversine, plan_days
+from lets_go.geocoding import build_query, geocode_or_none, place_query, search_or_empty
 from lets_go.trips import (
     DraftLeg,
     add_item,
@@ -32,6 +33,7 @@ from lets_go.trips import (
     list_items,
     list_trips,
     normalize_place,
+    reorder_items,
     set_item_location,
     set_leg_anchor,
     set_leg_cap,
@@ -106,6 +108,22 @@ def _geocode(query: str) -> tuple[float, float] | None:
     return geocode_or_none(query)
 
 
+@st.cache_data(ttl=86400)
+def _place_search(query: str) -> list[dict]:
+    """Top place matches to pick from (cached; one Nominatim call per query)."""
+    return search_or_empty(query)
+
+
+def _locate(query: str) -> tuple[float, float, str] | None:
+    """Top match as (lat, lon, address), or None — the address is stored so the
+    day plan can show where a spot/restaurant is. Reuses the cached place search."""
+    matches = _place_search(query)
+    if not matches:
+        return None
+    top = matches[0]
+    return (top["lat"], top["lon"], top["display_name"])
+
+
 def _home_amount(item: dict, home: str) -> Decimal:
     if item["cost"] is None:  # TBD — counts as 0 until a price is filled in
         return Decimal(0)
@@ -129,9 +147,9 @@ def _submit_item_cb(
     amount = Decimal(str(cost)) if cost is not None else None
     new_id = add_item(tid, fixed_leg_id, category, name, amount, g[kp + "ccy"], g[kp + "date"])
     if category in ("spot", "restaurant") and (place[0] or place[1]):
-        coords = _geocode(place_query(name, place[0], place[1]))  # locate the place you typed
-        if coords:
-            set_item_location(new_id, coords[0], coords[1])
+        found = _locate(place_query(name, place[0], place[1]))  # locate the place you typed
+        if found:
+            set_item_location(new_id, found[0], found[1], found[2])
     g[kp + "err"] = []
     g[kp + "name"] = ""
     g[kp + "cost"] = None  # keep the date so several items can share a day
@@ -159,11 +177,11 @@ def _item_location_editor(it: dict, place: tuple[str, str]) -> None:
             (iid, lat_key, lon_key),
         )
         if st.button("Locate from name", key=f"iloc_{iid}"):
-            coords = _geocode(place_query(it["name"], place[0], place[1]))
-            if coords is None:
+            found = _locate(place_query(it["name"], place[0], place[1]))
+            if found is None:
                 st.warning("Couldn't find that place — enter the coordinates by hand.")
             else:
-                set_item_location(iid, coords[0], coords[1])
+                set_item_location(iid, found[0], found[1], found[2])
                 st.session_state.pop(lat_key, None)  # reseed inputs from the stored value
                 st.session_state.pop(lon_key, None)
                 st.rerun()
@@ -455,10 +473,37 @@ def _leg_field_defaults(prefix: str) -> dict:
     }
 
 
+def _place_picker(prefix: str) -> None:
+    """Search a place and pick the exact match — fills the To city/Country below
+    with the right name + country (disambiguates, fixes spelling)."""
+    sc1, sc2 = st.columns([3, 1])
+    sc1.text_input("🔎 Search a place", key=f"{prefix}q", placeholder="e.g. Disneyland, Anaheim")
+    sc2.markdown("<div style='height:1.7em'></div>", unsafe_allow_html=True)
+    if sc2.button("Search", key=f"{prefix}search"):
+        st.session_state[f"{prefix}results"] = _place_search(st.session_state.get(f"{prefix}q", ""))
+    results = st.session_state.get(f"{prefix}results")
+    if results is None:
+        return
+    if not results:
+        st.caption("No matches — type the city and country by hand below.")
+        return
+    labels = [r["display_name"] for r in results]
+    pick = st.selectbox(
+        "Matches", range(len(results)), format_func=lambda i: labels[i], key=f"{prefix}pick"
+    )
+    if st.button("Use this place", key=f"{prefix}use"):
+        chosen = results[pick]
+        st.session_state[f"{prefix}city"] = chosen["city"]
+        st.session_state[f"{prefix}country"] = chosen["country"]
+        st.session_state[f"{prefix}results"] = None
+        st.rerun()
+
+
 def _leg_field_widgets(prefix: str) -> None:
     oc1, oc2 = st.columns(2)
     oc1.text_input("From city (optional)", key=f"{prefix}from_city")
     oc2.text_input("From country (optional)", key=f"{prefix}from_country")
+    _place_picker(prefix)
     tc1, tc2 = st.columns(2)
     tc1.text_input("To city", key=f"{prefix}city")
     tc2.text_input("Country (optional)", key=f"{prefix}country")
@@ -780,6 +825,154 @@ def _leg_span(leg: dict) -> str:
     return f"{leg['start_date'] or '?'} → {leg['end_date'] or '?'}"
 
 
+def _leg_ref(leg: dict, items: list[dict]) -> tuple[float, float] | None:
+    """Distance reference for a stop: the located hotel if there is one, else the
+    destination anchor (PRD §6/§8). None when neither is located."""
+    hotel = next(
+        (
+            it
+            for it in items
+            if it["leg_id"] == leg["id"] and it["category"] == "hotel" and it.get("lat") is not None
+        ),
+        None,
+    )
+    if hotel:
+        return (float(hotel["lat"]), float(hotel["lon"]))
+    if leg.get("anchor_lat") is not None:
+        return (float(leg["anchor_lat"]), float(leg["anchor_lon"]))
+    return None
+
+
+def _item_distance(
+    it: dict, spots_ll: list[tuple[float, float]], ref: tuple[float, float] | None
+) -> float | None:
+    """Kilometres from an item to what it's grouped around: a restaurant to its
+    nearest activity (else the hotel/anchor), an activity to the hotel/anchor."""
+    if it.get("lat") is None:
+        return None
+    p = (float(it["lat"]), float(it["lon"]))
+    targets = spots_ll if it["category"] == "restaurant" and spots_ll else ([ref] if ref else [])
+    return min((haversine(p, t) for t in targets), default=None)
+
+
+def _move_item_cb(it: dict, home: str, sel_key: str) -> None:
+    update_item(it["id"], it["cost"], it["currency"] or home, st.session_state[sel_key])
+
+
+def _day_item_row(
+    it: dict,
+    spots_ll: list[tuple[float, float]],
+    ref: tuple[float, float] | None,
+    day_options: list[date | None],
+    home: str,
+) -> None:
+    row, mv = st.columns([4, 2])
+    icon = CATEGORY_ICON.get(it["category"], "")
+    dist = _item_distance(it, spots_ll, ref)
+    km = f" · {dist:.1f} km" if dist is not None else ""
+    row.write(f"{icon} **{it['name']}**{km}")
+    if it.get("address"):
+        row.caption(it["address"])
+    current = it.get("on_date")
+    options: list[date | None] = day_options if current in day_options else [current, *day_options]
+
+    def _label(dt: date | None) -> str:
+        return f"Day {day_options.index(dt) + 1} · {dt}" if dt in day_options else "Unscheduled"
+
+    mv.selectbox(
+        "Move to",
+        options,
+        index=options.index(current),
+        format_func=_label,
+        key=f"moveday_{it['id']}",
+        on_change=_move_item_cb,
+        args=(it, home, f"moveday_{it['id']}"),
+        label_visibility="collapsed",
+    )
+
+
+def _auto_arrange(
+    leg: dict,
+    leg_items: list[dict],
+    num_days: int,
+    ref: tuple[float, float] | None,
+    start: date | None,
+) -> None:
+    """Fill undated located items into days and group them by distance (activities
+    anchor the days; restaurants join their nearest activity), writing each item's
+    date + within-day order. Unlocated items are left untouched (PRD §6/§8)."""
+    activities = [
+        (
+            it["id"],
+            float(it["lat"]),
+            float(it["lon"]),
+            (it["on_date"] - start).days if it.get("on_date") and start else None,
+        )
+        for it in leg_items
+        if it["category"] == "spot" and it.get("lat") is not None
+    ]
+    restaurants = [
+        (it["id"], float(it["lat"]), float(it["lon"]))
+        for it in leg_items
+        if it["category"] == "restaurant" and it.get("lat") is not None
+    ]
+    plan = plan_days(activities, restaurants, num_days, ref)
+    schedule = [
+        (iid, (start + timedelta(days=d) if start else None), pos)
+        for d, bucket in enumerate(plan)
+        for pos, (iid, _dist) in enumerate(bucket)
+    ]
+    reorder_items(schedule)
+
+
+def _day_plan_section(trip: dict) -> None:
+    """Per stop: the day-by-day schedule — activities anchor each day, restaurants
+    grouped by nearest activity with distance + address, each movable to another
+    day. 'Auto-arrange by distance' fills undated items in and regroups (PRD §6/§8/§9)."""
+    home = trip["home_currency"]
+    items = list_items(trip["id"])
+    shown = False
+    for leg in trip["legs"]:
+        leg_items = [
+            it
+            for it in items
+            if it["leg_id"] == leg["id"] and it["category"] in ("spot", "restaurant")
+        ]
+        if not leg_items:
+            continue
+        if not shown:
+            st.markdown("**🗺 Day plan**")
+            shown = True
+        start, end = leg["start_date"], leg["end_date"]
+        num_days = (end - start).days + 1 if start and end else 1
+        ref = _leg_ref(leg, items)
+        spots_ll = [
+            (float(it["lat"]), float(it["lon"]))
+            for it in leg_items
+            if it["category"] == "spot" and it.get("lat") is not None
+        ]
+        day_options: list[date | None] = [
+            start + timedelta(days=d) if start else None for d in range(num_days)
+        ]
+        st.caption(leg["city"])
+        if st.button(f"🗺 Auto-arrange by distance — {leg['city']}", key=f"arrange_{leg['id']}"):
+            _auto_arrange(leg, leg_items, num_days, ref, start)
+            st.rerun()
+        for d, date_d in enumerate(day_options):
+            bucket = [it for it in leg_items if it.get("on_date") == date_d]
+            label = f"Day {d + 1}" + (f" · {date_d}" if date_d else "")
+            with st.expander(label, expanded=bool(bucket)):
+                if not bucket:
+                    st.caption("No plans yet — move an item here, or auto-arrange.")
+                for it in bucket:
+                    _day_item_row(it, spots_ll, ref, day_options, home)
+        unscheduled = [it for it in leg_items if it.get("on_date") not in day_options]
+        if unscheduled:
+            with st.expander("Unscheduled", expanded=True):
+                for it in unscheduled:
+                    _day_item_row(it, spots_ll, ref, day_options, home)
+
+
 def _render_review(trip: dict) -> None:
     tid = trip["id"]
     home = trip["home_currency"]
@@ -787,6 +980,7 @@ def _render_review(trip: dict) -> None:
     _budget_summary(trip, home)
     _legs_summary(trip["legs"])
     _item_manager(trip, show_add=False, tag="rev")
+    _day_plan_section(trip)
     st.divider()
     keep, sd, fin = st.columns([1.2, 1, 1])
     if keep.button("◀ Keep editing", key="rev_back"):

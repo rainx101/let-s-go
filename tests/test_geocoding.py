@@ -2,7 +2,31 @@
 
 from urllib.error import URLError
 
-from lets_go.geocoding import build_query, geocode, geocode_or_none, place_query
+from lets_go.geocoding import (
+    build_query,
+    geocode,
+    geocode_or_none,
+    parse_search,
+    place_query,
+    search_or_empty,
+)
+
+
+def _fake_search() -> list[dict]:
+    return [
+        {
+            "lat": "33.8121",
+            "lon": "-117.9190",
+            "display_name": "Disneyland Park, Anaheim, California, United States",
+            "address": {"city": "Anaheim", "state": "California", "country": "United States"},
+        },
+        {
+            "lat": "51.5",
+            "lon": "-0.12",
+            "display_name": "Disneyland, London, England, United Kingdom",
+            "address": {"town": "London", "country": "United Kingdom"},
+        },
+    ]
 
 
 # Nominatim's /search returns a JSON list; we use the first result's lat/lon.
@@ -70,3 +94,42 @@ def test_geocode_or_none_returns_coords_when_available():
         33.8121,
         -117.9190,
     )
+
+
+def test_parse_search_extracts_display_coords_city_country():
+    places = parse_search(_fake_search())
+    assert places[0] == {
+        "display_name": "Disneyland Park, Anaheim, California, United States",
+        "lat": 33.8121,
+        "lon": -117.9190,
+        "city": "Anaheim",
+        "country": "United States",
+    }
+
+
+def test_parse_search_city_falls_back_to_town():
+    assert parse_search(_fake_search())[1]["city"] == "London"
+
+
+def test_parse_search_skips_entries_without_coords():
+    bad = [{"display_name": "x", "address": {"country": "Nowhere"}}]
+    assert parse_search(bad) == []
+
+
+def test_search_or_empty_returns_candidates():
+    places = search_or_empty("Disneyland", fetch_json=lambda _url: _fake_search())
+    assert [p["country"] for p in places] == ["United States", "United Kingdom"]
+
+
+def test_search_or_empty_blank_query_does_not_fetch():
+    def _boom(_url: str) -> list[dict]:
+        raise AssertionError("should not fetch for a blank query")
+
+    assert search_or_empty("  ", fetch_json=_boom) == []
+
+
+def test_search_or_empty_falls_back_on_error():
+    def _boom(_url: str) -> list[dict]:
+        raise URLError("down")
+
+    assert search_or_empty("Disneyland", fetch_json=_boom) == []
