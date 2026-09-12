@@ -284,3 +284,21 @@ def test_create_trip_persists_the_picked_anchor(monkeypatch):
     leg_insert = next(params for sql, params in calls if "INSERT INTO legs" in sql)
     assert 33.8121 in leg_insert
     assert -117.919 in leg_insert
+
+
+def test_create_trip_persists_the_picked_origin_coords(monkeypatch):
+    calls: list[tuple[str, tuple]] = []
+    monkeypatch.setattr("lets_go.trips.get_connection", lambda: _FakeConn(calls))
+    leg = DraftLeg(
+        from_city="Los Angeles",
+        from_country="USA",
+        city="Anaheim",
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 3),
+        from_lat=33.9416,
+        from_lon=-118.4085,
+    )
+    create_trip("Disney", "USD", None, [leg])
+    leg_insert = next(params for sql, params in calls if "INSERT INTO legs" in sql)
+    assert 33.9416 in leg_insert
+    assert -118.4085 in leg_insert

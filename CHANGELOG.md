@@ -6,6 +6,26 @@ step**.
 
 ---
 
+## 2026-09-12 — Locate-in-field for From & To (validate both endpoints)
+
+**What we did** (type the city, hit 📍 Locate, pick it — a typo can't mislead flight/hotel search)
+- Both **From/start** and **To/destination** are now the same **type-and-Locate** field
+  (travel-site style): type the city, press **📍 Locate**, pick the match. The dropped
+  separate search box is gone — the city field *is* the query. One cached Nominatim call
+  per Locate (OSM-compliant; not per keystroke). Typing without locating still works.
+- Picking pins coordinates: the destination → the **anchor** (hotel/activity ranking),
+  the origin → **from-coords** (`legs.from_lat/from_lon`) so flight search resolves the
+  departure airport from a real point, not typed text. Both stay editable (PRD §6/§7/§11).
+- Plumbing: `DraftLeg.from_lat/from_lon`; `create_trip` + `add_leg` persist them;
+  `update_leg` writes them; `list_trips` reads them; schema adds the two columns.
+- Verified: ruff/ty/pytest green (99 tests; +1 — `create_trip` over a mocked connection
+  asserts the picked origin coords land in the leg INSERT).
+
+**Next step**
+- Phase 3: the **anchor-ranged hotel search**, then **flight search** (origin→destination
+  now both validated/geocoded). Optionally give the item "Find the place" box the same
+  type-and-Locate treatment for consistency.
+
 ## 2026-09-12 — POI-as-destination (the picked place becomes the stop anchor)
 
 **What we did** ("Disneyland, Anaheim" anchors at Disneyland, not the city center)
