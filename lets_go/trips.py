@@ -29,6 +29,8 @@ class DraftLeg:
     need_hotel: bool = False
     round_trip: bool = False
     budget_cap: Decimal | None = None
+    anchor_lat: float | None = None  # the picked place's point (POI-as-destination)
+    anchor_lon: float | None = None
 
 
 # --- pure helpers (testable) ------------------------------------------------
@@ -174,8 +176,8 @@ def create_trip(
             cur.execute(
                 "INSERT INTO legs (trip_id, city, country, from_city, from_country, "
                 "start_date, end_date, need_flight, need_hotel, round_trip, budget_cap, "
-                "position) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "anchor_lat, anchor_lon, position) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     trip_id,
                     leg.city.strip(),
@@ -188,6 +190,8 @@ def create_trip(
                     leg.need_hotel,
                     leg.round_trip,
                     leg.budget_cap,
+                    leg.anchor_lat,
+                    leg.anchor_lon,
                     pos,
                 ),
             )
@@ -292,6 +296,8 @@ def update_leg(leg_id: int, leg: DraftLeg) -> None:
                 leg_id,
             ),
         )
+    if leg.anchor_lat is not None:  # a fresh pick re-anchors; no pick leaves it be
+        set_leg_anchor(leg_id, leg.anchor_lat, leg.anchor_lon)
 
 
 def add_leg(trip_id: int, leg: DraftLeg) -> None:
@@ -304,7 +310,8 @@ def add_leg(trip_id: int, leg: DraftLeg) -> None:
         cur.execute(
             "INSERT INTO legs (trip_id, city, country, from_city, from_country, "
             "start_date, end_date, need_flight, need_hotel, round_trip, budget_cap, "
-            "position) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "anchor_lat, anchor_lon, position) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 trip_id,
                 leg.city.strip(),
@@ -317,6 +324,8 @@ def add_leg(trip_id: int, leg: DraftLeg) -> None:
                 leg.need_hotel,
                 leg.round_trip,
                 leg.budget_cap,
+                leg.anchor_lat,
+                leg.anchor_lon,
                 row[0],
             ),
         )

@@ -98,9 +98,12 @@ Every auto-value must remain **user-editable**; manual entry always works.
       picker in the activity/restaurant **add form**; address fallback when there's
       no match; Review's **"needs an address"** list locates name-only items so they
       join the day plan. Per-item Locate + editable lat/lon stay in the ✏️ popover.)_
-- [ ] **Place/POI destinations:** a destination can be **any geocoded place, not
+- [x] **Place/POI destinations:** a destination can be **any geocoded place, not
       just a city** (e.g. "Disneyland, Anaheim"); that point is the stop's
-      **anchor** (PRD §6/§7, revised 2026-09-08).
+      **anchor** (PRD §6/§7, revised 2026-09-08). _(2026-09-12: picking a place in
+      the destination search now stores its exact coords as the leg **anchor**
+      (`DraftLeg.anchor_lat/lon` → `create_trip`/`add_leg`); the steps skip the
+      city-center auto-locate when a POI was picked. Still user-editable.)_
 - [x] **Distance ordering:** order each day's items by distance; **place
       restaurants near the activities**; group days by proximity when activities
       scatter from the anchor (PRD §6/§8/§9). _(2026-09-12: Review's activity-
