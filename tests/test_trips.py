@@ -1,11 +1,13 @@
-"""Tests for the pure trip helpers (no DB)."""
+"""Tests for the pure trip helpers (plus create_trip over a mocked connection)."""
 
+import contextlib
 import json
 from datetime import date
 from decimal import Decimal
 
 from lets_go.trips import (
     DraftLeg,
+    create_trip,
     dates_overlap,
     destination_budgets,
     export_json,
@@ -234,3 +236,51 @@ def test_budget_caps_ignores_stops_without_a_cap():
 def test_budget_caps_no_constraint_without_trip_cap():
     legs = [_leg(budget_cap=Decimal("900")), _leg(city="Osaka", budget_cap=Decimal("900"))]
     assert validate_budget_caps(None, legs) == []
+
+
+class _FakeCursor:
+    """Records the SQL + params create_trip runs, so we can assert on them
+    without a real Neon connection (the DB is mocked, per the test rules)."""
+
+    def __init__(self, calls: list[tuple[str, tuple]]) -> None:
+        self.calls = calls
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        return False
+
+    def execute(self, sql: str, params: tuple = ()) -> None:
+        self.calls.append((sql, params))
+
+    def fetchone(self):
+        return (1,)  # the trip id from INSERT ... RETURNING, and leg counts
+
+
+class _FakeConn:
+    def __init__(self, calls: list[tuple[str, tuple]]) -> None:
+        self.calls = calls
+
+    def transaction(self):
+        return contextlib.nullcontext()
+
+    def cursor(self, *args, **kwargs) -> _FakeCursor:
+        return _FakeCursor(self.calls)
+
+
+def test_create_trip_persists_the_picked_anchor(monkeypatch):
+    calls: list[tuple[str, tuple]] = []
+    monkeypatch.setattr("lets_go.trips.get_connection", lambda: _FakeConn(calls))
+    leg = DraftLeg(
+        city="Anaheim",
+        country="USA",
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 3),
+        anchor_lat=33.8121,
+        anchor_lon=-117.919,
+    )
+    create_trip("Disney", "USD", None, [leg])
+    leg_insert = next(params for sql, params in calls if "INSERT INTO legs" in sql)
+    assert 33.8121 in leg_insert
+    assert -117.919 in leg_insert

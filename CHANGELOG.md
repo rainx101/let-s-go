@@ -6,6 +6,23 @@ step**.
 
 ---
 
+## 2026-09-12 — POI-as-destination (the picked place becomes the stop anchor)
+
+**What we did** ("Disneyland, Anaheim" anchors at Disneyland, not the city center)
+- Picking a place in the destination search now keeps its **exact coordinates** as the
+  stop **anchor**, instead of re-geocoding the city name. So a stop can be any POI, and
+  hotels/activities plan around that point (PRD §6/§7).
+- Plumbing: `DraftLeg.anchor_lat/lon`; the picker stashes the match's coords;
+  `create_trip` + `add_leg` persist them; `update_leg` re-anchors only on a fresh pick
+  (an edit without picking leaves the anchor alone). The steps' auto-locate runs only
+  when no anchor was picked; the anchor stays editable under **Adjust location**.
+- Verified: ruff/ty/pytest green (98 tests; +1 — `create_trip` over a mocked connection
+  asserts the picked anchor lands in the leg INSERT).
+
+**Next step**
+- Phase 3: the **anchor-ranged hotel search** (now that every stop has a real anchor),
+  then flight search.
+
 ## 2026-09-12 — Place picker for items + address fallback + "needs an address"
 
 **What we did** (search-and-pick the real place for activities/restaurants, not a blind geocode)

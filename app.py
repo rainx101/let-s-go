@@ -500,6 +500,11 @@ def _leg_field_defaults(prefix: str) -> dict:
         f"{prefix}flight": False,
         f"{prefix}hotel": False,
         f"{prefix}round": False,
+        f"{prefix}q": "",  # place search box + its results/pick and the picked anchor
+        f"{prefix}results": None,
+        f"{prefix}lastq": None,
+        f"{prefix}anchor_lat": None,
+        f"{prefix}anchor_lon": None,
     }
 
 
@@ -535,6 +540,8 @@ def _place_picker(prefix: str) -> None:
     if chosen and st.button("Use this place", key=f"{prefix}use"):
         st.session_state[f"{prefix}city"] = chosen["city"]
         st.session_state[f"{prefix}country"] = chosen["country"]
+        st.session_state[f"{prefix}anchor_lat"] = chosen["lat"]  # the POI becomes the anchor
+        st.session_state[f"{prefix}anchor_lon"] = chosen["lon"]
         st.session_state[f"{prefix}results"] = None  # hide matches; query stays put
         st.rerun()
 
@@ -576,6 +583,8 @@ def _draftleg_from(prefix: str) -> DraftLeg:
         need_hotel=g[f"{prefix}hotel"],
         round_trip=g[f"{prefix}round"],
         budget_cap=Decimal(str(g[f"{prefix}cap"])) if g[f"{prefix}cap"] else None,
+        anchor_lat=g.get(f"{prefix}anchor_lat"),
+        anchor_lon=g.get(f"{prefix}anchor_lon"),
     )
 
 
@@ -591,6 +600,8 @@ def _draftleg_from_row(leg: dict) -> DraftLeg:
         need_hotel=leg["need_hotel"],
         round_trip=leg.get("round_trip", False),
         budget_cap=leg.get("budget_cap"),
+        anchor_lat=leg.get("anchor_lat"),
+        anchor_lon=leg.get("anchor_lon"),
     )
 
 
@@ -607,6 +618,11 @@ def _seed_leg_fields(prefix: str, leg: DraftLeg) -> None:
     g[f"{prefix}hotel"] = leg.need_hotel
     g[f"{prefix}round"] = leg.round_trip
     g[f"{prefix}cap"] = float(leg.budget_cap) if leg.budget_cap else None
+    g[f"{prefix}q"] = ""  # fresh place search; keep the leg's existing anchor
+    g[f"{prefix}results"] = None
+    g[f"{prefix}lastq"] = None
+    g[f"{prefix}anchor_lat"] = leg.anchor_lat
+    g[f"{prefix}anchor_lon"] = leg.anchor_lon
 
 
 def _auto_locate(query: str) -> tuple[float, float] | None:
