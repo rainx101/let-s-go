@@ -92,8 +92,10 @@ Every auto-value must remain **user-editable**; manual entry always works.
 
 - [x] **Currency conversion:** live rates via **open.er-api.com** (free, no key,
       base USD); static `RATES` fallback + 1h cache (PRD §10/§11).
-- [ ] **Geocoding:** locate activities/restaurants **and the destination place
+- [~] **Geocoding:** locate activities/restaurants **and the destination place
       (the anchor)** by name via **OpenStreetMap** (respect ~1 req/sec + user-agent).
+      _(Done 2026-09-12: the destination **anchor** — Locate + editable lat/lon in
+      the steps. Activities/restaurants still to geocode.)_
 - [ ] **Place/POI destinations:** a destination can be **any geocoded place, not
       just a city** (e.g. "Disneyland, Anaheim"); that point is the stop's
       **anchor** (PRD §6/§7, revised 2026-09-08).
@@ -150,4 +152,4 @@ Goal: the "remember what I liked" value.
 - [ ] Any free/affordable source for **activity prices** — else hand-type stays
       the baseline (PRD §11).
 
-_Last updated: 2026-09-08_
+_Last updated: 2026-09-12_

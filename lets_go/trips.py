@@ -225,6 +225,18 @@ def set_leg_cap(leg_id: int, field: str, amount: Decimal | None) -> None:
     logger.info("Leg %s %s -> %s", leg_id, field, amount)
 
 
+def set_leg_anchor(leg_id: int, lat: float | None, lon: float | None) -> None:
+    """Set (or clear, with None/None) a destination's anchor coordinates — the
+    point Phase 3 hotel/restaurant search ranks by distance (PRD §6/§7)."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE legs SET anchor_lat = %s, anchor_lon = %s WHERE id = %s",
+            (lat, lon, leg_id),
+        )
+    logger.info("Leg %s anchor -> (%s, %s)", leg_id, lat, lon)
+
+
 def delete_trip(trip_id: int) -> None:
     """Delete a trip and its legs + items (legs/items cascade)."""
     conn = get_connection()
@@ -244,7 +256,8 @@ def list_trips() -> list[dict]:
         trips = cur.fetchall()
         cur.execute(
             "SELECT id, trip_id, city, country, from_city, from_country, start_date, end_date, "
-            "need_flight, need_hotel, round_trip, budget_cap, flight_cap, hotel_cap, position "
+            "need_flight, need_hotel, round_trip, budget_cap, flight_cap, hotel_cap, "
+            "anchor_lat, anchor_lon, position "
             "FROM legs ORDER BY position"
         )
         legs = cur.fetchall()

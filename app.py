@@ -16,6 +16,7 @@ from lets_go.budget import (
 )
 from lets_go.currency import convert, currency_for_country, live_rates_or_static
 from lets_go.db import health_check, init_db
+from lets_go.geocoding import build_query, geocode_or_none
 from lets_go.trips import (
     DraftLeg,
     add_item,
@@ -31,6 +32,7 @@ from lets_go.trips import (
     list_items,
     list_trips,
     normalize_place,
+    set_leg_anchor,
     set_leg_cap,
     set_trip_status,
     update_item,
@@ -94,6 +96,13 @@ def _range_bounds(legs: list[dict]) -> tuple[object, object]:
 def _rates() -> dict[str, Decimal]:
     """Live USD-per-unit rates (cached 1h), or the static fallback table."""
     return live_rates_or_static()
+
+
+@st.cache_data(ttl=86400)
+def _geocode(query: str) -> tuple[float, float] | None:
+    """Anchor coordinates for a place (cached a day; one Nominatim call per
+    query), or None on no match / any failure — the UI then keeps manual entry."""
+    return geocode_or_none(query)
 
 
 def _home_amount(item: dict, home: str) -> Decimal:
@@ -464,6 +473,52 @@ def _seed_leg_fields(prefix: str, leg: DraftLeg) -> None:
     g[f"{prefix}cap"] = float(leg.budget_cap) if leg.budget_cap else None
 
 
+def _save_anchor_cb(leg_id: int, lat_key: str, lon_key: str) -> None:
+    lat = st.session_state.get(lat_key)
+    lon = st.session_state.get(lon_key)
+    set_leg_anchor(leg_id, lat, lon)
+
+
+def _anchor_row(leg: dict) -> None:
+    """Editable anchor coordinates for the stop — the point hotels & activities
+    are ranked by distance from (PRD §6/§7). 'Locate' geocodes the city via
+    OpenStreetMap; the values stay hand-editable (manual fallback, PRD §11)."""
+    lid = leg["id"]
+    lat_key, lon_key = f"anchorlat_{lid}", f"anchorlon_{lid}"
+    st.caption("📍 Anchor — hotels & activities are ranked by distance from this point.")
+    c1, c2, c3 = st.columns([2, 2, 1])
+    c1.number_input(
+        "Latitude",
+        min_value=-90.0,
+        max_value=90.0,
+        value=float(leg["anchor_lat"]) if leg.get("anchor_lat") is not None else None,
+        format="%.5f",
+        key=lat_key,
+        on_change=_save_anchor_cb,
+        args=(lid, lat_key, lon_key),
+    )
+    c2.number_input(
+        "Longitude",
+        min_value=-180.0,
+        max_value=180.0,
+        value=float(leg["anchor_lon"]) if leg.get("anchor_lon") is not None else None,
+        format="%.5f",
+        key=lon_key,
+        on_change=_save_anchor_cb,
+        args=(lid, lat_key, lon_key),
+    )
+    c3.markdown("<div style='height:1.7em'></div>", unsafe_allow_html=True)
+    if c3.button("Locate", key=f"anchorloc_{lid}"):
+        coords = _geocode(build_query(leg["city"], leg.get("country") or ""))
+        if coords is None:
+            st.warning("Couldn't find that place — enter the coordinates by hand.")
+        else:
+            set_leg_anchor(lid, coords[0], coords[1])
+            st.session_state.pop(lat_key, None)  # reseed inputs from the stored value
+            st.session_state.pop(lon_key, None)
+            st.rerun()
+
+
 def _leg_header(leg: dict) -> None:
     """Read-only destination line: origin ⇄/→ city, country, and dates."""
     arrow = "⇄" if leg.get("round_trip") else "→"
@@ -713,6 +768,7 @@ def _render_steps(trip: dict) -> None:
     step = min(st.session_state["plan_step"], len(steps) - 1)
 
     _city_budget_bar(trip, leg, items, home)  # flight+hotel budget + extras, on top
+    _anchor_row(leg)  # search anchor for the Hotel/Activities/Food steps
 
     def _go_next() -> None:
         idx = ids.index(st.session_state["plan_dest"])

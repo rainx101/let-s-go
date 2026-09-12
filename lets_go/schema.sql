@@ -50,6 +50,11 @@ ALTER TABLE legs ADD COLUMN IF NOT EXISTS flight_hotel_budget NUMERIC(12, 2);
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS flight_cap NUMERIC(12, 2);
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS hotel_cap NUMERIC(12, 2);
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS round_trip BOOLEAN NOT NULL DEFAULT FALSE;
+-- Anchor coordinates: the stop's point (geocoded from city/country via
+-- OpenStreetMap, else typed) that Phase 3 hotel/restaurant search ranks by
+-- distance (PRD §6/§7). NULL until located; always user-editable.
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS anchor_lat DOUBLE PRECISION;
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS anchor_lon DOUBLE PRECISION;
 
 CREATE TABLE IF NOT EXISTS items (
     id         SERIAL PRIMARY KEY,
