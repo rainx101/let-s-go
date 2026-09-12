@@ -83,6 +83,10 @@ ALTER TABLE items ALTER COLUMN cost DROP NOT NULL;
 -- against the leg's anchor (PRD §6/§8). NULL until located; always user-editable.
 ALTER TABLE items ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
 ALTER TABLE items ADD COLUMN IF NOT EXISTS lon DOUBLE PRECISION;
+-- The geocoded place's full address (OpenStreetMap display name), stored when an
+-- item is located so the day plan can show where a spot/restaurant is. NULL until
+-- located via place search; typed coordinates leave it NULL.
+ALTER TABLE items ADD COLUMN IF NOT EXISTS address TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_legs_trip ON legs (trip_id);
 CREATE INDEX IF NOT EXISTS idx_items_trip ON items (trip_id);

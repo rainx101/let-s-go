@@ -99,12 +99,16 @@ Every auto-value must remain **user-editable**; manual entry always works.
 - [ ] **Place/POI destinations:** a destination can be **any geocoded place, not
       just a city** (e.g. "Disneyland, Anaheim"); that point is the stop's
       **anchor** (PRD §6/§7, revised 2026-09-08).
-- [ ] **Distance ordering:** order each day's items by distance; **place
+- [x] **Distance ordering:** order each day's items by distance; **place
       restaurants near the activities**; group days by proximity when activities
-      scatter from the anchor (PRD §6/§8/§9).
-- [ ] **Day arrangement:** **recommend a day** for undated activities (spread
+      scatter from the anchor (PRD §6/§8/§9). _(2026-09-12: Review's activity-
+      anchored **day plan** — `plan_days` puts each restaurant under its nearest
+      activity's day with distance + address; no-activity stops measure from the
+      hotel/anchor; Auto-arrange writes dates + order.)_
+- [~] **Day arrangement:** **recommend a day** for undated activities (spread
       across the stop's date range); allow **reorder items up/down** per day
-      (PRD §9). _(Moved from Phase 2 — belongs with the day-by-day view.)_
+      (PRD §9). _(2026-09-12: Auto-arrange spreads undated activities into days;
+      per-item **Move to day** done; within-day up/down reordering still to do.)_
 - [ ] **Flight auto-search:** Travelpayouts Data API (§11) — token in secrets;
       **cache results**; cheapest within the **flight+hotel** allocation.
 - [ ] **Hotel auto-search (anchor-ranked):** one small-quota free API (pick at
@@ -130,6 +134,9 @@ Goal: the "remember what I liked" value.
 - [ ] **Restaurants-by-city tab:** select **country → city**; filters **good / ok
       / bad / wishlist**; **expandable reviews newest → oldest**.
 - [ ] **Wishlist** ("want to try") in the same tab but a **separate** filter.
+- [ ] **Wishlist from a Receipt:** mark an **un-visited activity/restaurant** to a
+      wishlist; when planning the **same area** again, surface a wishlist section to
+      **add them back** (requested 2026-09-12; activities + restaurants).
 - [ ] **Preferred hotels:** mark preferred → **resurface in recommendations** for
       the same area with a **"liked before"** mark.
 - [ ] **Per-city average meal cost** as the primary restaurant estimate,

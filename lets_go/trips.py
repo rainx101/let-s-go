@@ -360,7 +360,7 @@ def list_items(trip_id: int) -> list[dict]:
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.currency, i.on_date, "
-            "i.lat, i.lon, i.position "
+            "i.lat, i.lon, i.address, i.position "
             "FROM items i LEFT JOIN legs l ON l.id = i.leg_id "
             "WHERE i.trip_id = %s "
             "ORDER BY l.position NULLS FIRST, i.on_date NULLS FIRST, i.position, i.id",
@@ -379,16 +379,32 @@ def update_item(item_id: int, cost: Decimal | None, currency: str, on_date: date
         )
 
 
-def set_item_location(item_id: int, lat: float | None, lon: float | None) -> None:
+def set_item_location(
+    item_id: int, lat: float | None, lon: float | None, address: str | None = None
+) -> None:
     """Set (or clear, with None/None) an item's coordinates — used to order a
-    day's activities/restaurants by distance from the leg's anchor (PRD §6/§8)."""
+    day's activities/restaurants by distance from the leg's anchor (PRD §6/§8).
+    `address` is the geocoded place's display name, shown in the day plan."""
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE items SET lat = %s, lon = %s WHERE id = %s",
-            (lat, lon, item_id),
+            "UPDATE items SET lat = %s, lon = %s, address = %s WHERE id = %s",
+            (lat, lon, address, item_id),
         )
     logger.info("Item %s location -> (%s, %s)", item_id, lat, lon)
+
+
+def reorder_items(schedule: list[tuple[int, date | None, int]]) -> None:
+    """Apply a day-by-day plan: set each item's `on_date` and within-day
+    `position` in one transaction. `schedule` is (item_id, on_date, position)."""
+    conn = get_connection()
+    with conn.transaction(), conn.cursor() as cur:
+        for item_id, on_date, position in schedule:
+            cur.execute(
+                "UPDATE items SET on_date = %s, position = %s WHERE id = %s",
+                (on_date, position, item_id),
+            )
+    logger.info("Reordered %s items", len(schedule))
 
 
 def delete_item(item_id: int) -> None:

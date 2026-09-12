@@ -81,3 +81,56 @@ def geocode_or_none(
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
         logger.warning("geocode failed for %r (%s); manual entry", query, exc)
         return None
+
+
+# City comes from whichever address field the place happens to carry.
+_CITY_FIELDS = ("city", "town", "village", "municipality", "county")
+
+
+def parse_search(results: list[dict]) -> list[dict]:
+    """Shape Nominatim search results into pick-list candidates — each a dict of
+    display_name, lat, lon, city, country. Entries without coordinates are dropped."""
+    places = []
+    for r in results:
+        if "lat" not in r or "lon" not in r:
+            continue
+        addr = r.get("address", {})
+        display = r.get("display_name", "")
+        city = next((addr[f] for f in _CITY_FIELDS if addr.get(f)), display.split(",")[0].strip())
+        places.append(
+            {
+                "display_name": display,
+                "lat": float(r["lat"]),
+                "lon": float(r["lon"]),
+                "city": city,
+                "country": addr.get("country", ""),
+            }
+        )
+    return places
+
+
+def search(
+    query: str,
+    limit: int = 5,
+    fetch_json: Callable[[str], list[dict]] = _fetch_json,
+) -> list[dict]:
+    """Top place matches for a query (name/city/country + coords) to pick from.
+    Raises on a broken response — see `search_or_empty` for the fail-soft form."""
+    params = urllib.parse.urlencode(
+        {"q": query, "format": "json", "addressdetails": 1, "limit": limit}
+    )
+    return parse_search(fetch_json(f"{_SEARCH_URL}?{params}"))
+
+
+def search_or_empty(
+    query: str,
+    fetch_json: Callable[[str], list[dict]] = _fetch_json,
+) -> list[dict]:
+    """Place matches for a query, or [] on a blank query / any failure (PRD §11)."""
+    if not query.strip():
+        return []
+    try:
+        return search(query, fetch_json=fetch_json)
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        logger.warning("place search failed for %r (%s)", query, exc)
+        return []

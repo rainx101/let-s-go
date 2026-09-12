@@ -6,6 +6,56 @@ step**.
 
 ---
 
+## 2026-09-12 — Destination place search & pick (name + country auto-filled)
+
+**What we did** (type a place → pick the real match; no more guessing spelling/country)
+- The destination form gains a **🔎 Search a place** box: type "Disneyland Anaheim",
+  press **Search**, get the **top OpenStreetMap matches** (each shown full — e.g.
+  "Disneyland, …, Anaheim, …, California, United States"), pick one, and **Use this
+  place** fills the **To city + Country** correctly (disambiguates, fixes spelling).
+  Shared form, so it works in the **skeleton builder and Setup** both. Manual typing
+  still works; "No matches" falls back to hand entry (PRD §11).
+- `lets_go/geocoding.py`: `search` + `search_or_empty` (fail-soft) return candidates
+  as `{display_name, lat, lon, city, country}` via `parse_search` (pure; picks the
+  city from whichever address field the place carries). Nominatim policy respected —
+  one call **per explicit Search** (cached), not per keystroke (free-tier autocomplete
+  isn't permitted; live typeahead would need a paid keyed API).
+- Verified: ruff/ty/pytest green (91 tests, 6 new search/parse); **AppTest** vs live
+  Nominatim — searching "Disneyland Anaheim" and picking the top match fills
+  city=Anaheim, country=United States.
+
+**Next step**
+- Use the picked match's exact coords as the anchor (ties into POI-as-destination);
+  add the same picker to the activity/restaurant add form; then the hotel search.
+
+## 2026-09-12 — Phase 3: activity-anchored day plan (group restaurants by distance)
+
+**What we did** ("Day 1 Disney, Day 2 beach → each restaurant lands with the nearer one")
+- Review's day plan is now a **day-by-day schedule**: one **expander per day (with its
+  date)**, activities as the day's **anchor**, and each restaurant shown under the day
+  of its **nearest activity** with the **distance + address**. Empty days stay visible,
+  **folded**, so a 5-day trip with one activity shows Day 1 planned and Days 2–5 ready
+  to fill. Each item has a **Move to day ▾** control; unlocated/undated items sit in an
+  **Unscheduled** group (PRD §6/§8/§9/§11).
+- **🗺 Auto-arrange by distance** (per stop) fills undated located items into days and
+  regroups by distance, writing each item's date + within-day order.
+- Pure `lets_go/distance.py`: `haversine` + `plan_days(activities, restaurants, num_days,
+  ref)` — **activities define the days** (typed dates kept; undated spread into the
+  emptiest days), **restaurants join their nearest activity's day** carrying the distance
+  to it; with **no activities**, everything lands on Day 1 measured from `ref` (the
+  located **hotel**, else the stop anchor).
+- Data/schema: `items.address TEXT` (geocoded display name, stored on locate);
+  `set_item_location(..., address)` and `list_items` carry it; `reorder_items(schedule)`
+  writes `on_date` + `position` in one transaction.
+- Verified: ruff/ty/pytest green (97 tests, 13 distance covering dated-day/nearest-
+  activity/no-activity/sparse-days/clamp).
+
+**Next step**
+- Wishlist: from a finalized Receipt, mark an un-visited activity/restaurant to a
+  **wishlist**, resurfaced when planning the same area again (Phase 4).
+- Phase 3: the **anchor-ranged hotel search** (Travelpayouts flights + a hotel API,
+  budget-bounded) and POI-as-destination.
+
 ## 2026-09-12 — Place-first geocoding UX (coordinates hidden)
 
 **What we did** (fixes the "do I hand-type lat/lon?" confusion — you don't)
