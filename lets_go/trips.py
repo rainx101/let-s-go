@@ -359,7 +359,8 @@ def list_items(trip_id: int) -> list[dict]:
     conn = get_connection()
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.currency, i.on_date, i.position "
+            "SELECT i.id, i.leg_id, i.category, i.name, i.cost, i.currency, i.on_date, "
+            "i.lat, i.lon, i.position "
             "FROM items i LEFT JOIN legs l ON l.id = i.leg_id "
             "WHERE i.trip_id = %s "
             "ORDER BY l.position NULLS FIRST, i.on_date NULLS FIRST, i.position, i.id",
@@ -376,6 +377,18 @@ def update_item(item_id: int, cost: Decimal | None, currency: str, on_date: date
             "UPDATE items SET cost = %s, currency = %s, on_date = %s WHERE id = %s",
             (cost, currency, on_date, item_id),
         )
+
+
+def set_item_location(item_id: int, lat: float | None, lon: float | None) -> None:
+    """Set (or clear, with None/None) an item's coordinates — used to order a
+    day's activities/restaurants by distance from the leg's anchor (PRD §6/§8)."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE items SET lat = %s, lon = %s WHERE id = %s",
+            (lat, lon, item_id),
+        )
+    logger.info("Item %s location -> (%s, %s)", item_id, lat, lon)
 
 
 def delete_item(item_id: int) -> None:

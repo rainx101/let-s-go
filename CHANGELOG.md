@@ -6,6 +6,51 @@ step**.
 
 ---
 
+## 2026-09-12 — Place-first geocoding UX (coordinates hidden)
+
+**What we did** (fixes the "do I hand-type lat/lon?" confusion — you don't)
+- Locating is now **automatic from the place name**, and the **raw lat/lon are
+  hidden**. The destination **anchor** geocodes on its own when you open the stop
+  ("📍 **Anaheim** located — hotels & activities plan around here"); an
+  **activity/restaurant geocodes the moment you add it** ("📍 Located near Anaheim
+  — grouped nearby"). No "Locate" click needed.
+- The **coordinates moved into a collapsed "Adjust location" expander** — the
+  manual override for the rare miss (auto-expanded only when nothing was found),
+  so the raw numbers are no longer front-and-center (PRD §11 keeps them editable).
+- Shared `_auto_locate` (one cached geocode per place per session) + `_coord_inputs`
+  (the fallback pair). `_submit_item_cb` geocodes new spot/restaurant items from
+  `name, city, country`. No schema/data change — reuses the anchor + item columns
+  and `set_leg_anchor` / `set_item_location` from today's earlier slices.
+- Verified: ruff/ty/pytest green (78 tests); **AppTest** against live Nominatim —
+  the anchor auto-locates Anaheim on first render (coords behind Adjust) and a
+  newly-added restaurant auto-locates near it.
+
+**Next step**
+- Phase 3 **distance grouping**: use the item + anchor coords to cluster/order
+  each day by closeness ("this restaurant is near Disney → same day"). Then the
+  anchor-ranged hotel search, and POI-as-destination.
+
+## 2026-09-12 — Phase 3: geocode activities & restaurants
+
+**What we did** (extends anchor geocoding to individual items)
+- Each **activity/restaurant** item can now get **coordinates** — the point Phase 3
+  distance ordering will sort a day by (distance from the leg's anchor, PRD §6/§8).
+  In the item's **✏️ popover** (spot/restaurant only): a **📍 Location** section with
+  a **Locate** button (geocodes the item's name near its stop's city/country via
+  OpenStreetMap) and **editable lat/lon** (manual fallback + override, PRD §11).
+- Reuses `lets_go/geocoding.py`: new pure `place_query(*parts)` (drops blanks;
+  `build_query` now calls it) builds the `name, city, country` query. Same cached,
+  fail-soft `_geocode` as the anchor. No new dependency.
+- Data: `items.lat` + `items.lon` (idempotent `DOUBLE PRECISION`, NULL until
+  located) + `set_item_location`; `list_items` returns them.
+- Verified: ruff/ty/pytest green (78 tests, 2 new `place_query`); live round-trip
+  (migration + set/clear an item location); **AppTest** — the location inputs render
+  in the Activities step and manual lat/lon entry persists via `set_item_location`.
+
+**Next step**
+- Rest of Phase 3: **distance ordering** within a day (using item + anchor coords),
+  POI-as-destination, then the anchor-ranked hotel search.
+
 ## 2026-09-12 — Phase 3: destination anchor geocoding (OpenStreetMap)
 
 **What we did** (first Phase 3 map piece; the anchor the hotel search will rank by)
