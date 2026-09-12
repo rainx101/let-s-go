@@ -6,6 +6,33 @@ step**.
 
 ---
 
+## 2026-09-12 — Phase 3: destination anchor geocoding (OpenStreetMap)
+
+**What we did** (first Phase 3 map piece; the anchor the hotel search will rank by)
+- Each destination now has an **anchor** — the point hotels/activities will be
+  ranked by distance from (PRD §6/§7). A **📍 anchor row** sits in the planning
+  steps (shared by the Hotel/Activities/Food steps of that leg, right under the
+  city budget bar): **Locate** geocodes the stop's city/country via **OpenStreetMap
+  (Nominatim)**, and the **lat/lon stay hand-editable** (manual fallback + override,
+  PRD §11).
+- New thin client `lets_go/geocoding.py` (mirrors `currency.py`): pure `build_query`
+  + `geocode` (parses Nominatim's first result → `(lat, lon)`), `geocode_or_none`
+  (**fail-soft** → None on no match/any error, logged). Nominatim policy honored —
+  **~1 req/sec throttle** and a **generic `User-Agent`** (no contact); the network
+  seam is injectable so tests never hit the wire. Cached in `app.py` via
+  `@st.cache_data` (one call per query). **No new dependency** (stdlib `urllib`).
+- Data: `legs.anchor_lat` + `legs.anchor_lon` (idempotent `DOUBLE PRECISION`, NULL
+  until located) + `set_leg_anchor`; `list_trips` returns them.
+- Scope: **anchor only** (the destination's city → coords). Geocoding individual
+  activities/restaurants and POI-as-destination are the next Phase 3 slices.
+- Verified: ruff/ty/pytest green (76 tests, 9 new geocoding); live round-trip
+  (migration + set/clear the anchor); **AppTest** — the anchor row renders in the
+  steps and manual lat/lon entry persists via `set_leg_anchor`.
+
+**Next step**
+- Rest of Phase 3: geocode activities/restaurants + POI-as-destination → distance
+  ordering within a day → the anchor-ranked hotel search.
+
 ## 2026-09-08 — Built: budget = flight + hotel; activities & food are extras
 
 **What we did** (implements the decision below; supersedes the per-city waterfall)
