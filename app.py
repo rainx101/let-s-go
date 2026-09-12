@@ -500,11 +500,12 @@ def _leg_field_defaults(prefix: str) -> dict:
         f"{prefix}flight": False,
         f"{prefix}hotel": False,
         f"{prefix}round": False,
-        f"{prefix}q": "",  # place search box + its results/pick and the picked anchor
-        f"{prefix}results": None,
-        f"{prefix}lastq": None,
+        f"{prefix}fromresults": None,  # Locate matches + pinned coords, per endpoint
+        f"{prefix}toresults": None,
         f"{prefix}anchor_lat": None,
         f"{prefix}anchor_lon": None,
+        f"{prefix}from_lat": None,
+        f"{prefix}from_lon": None,
     }
 
 
@@ -533,27 +534,85 @@ def _place_search_box(
     return results[pick]
 
 
-def _place_picker(prefix: str) -> None:
-    """Search a place and pick the exact match — fills the To city/Country below
-    with the right name + country (disambiguates, fixes spelling)."""
-    chosen = _place_search_box(prefix)
-    if chosen and st.button("Use this place", key=f"{prefix}use"):
-        st.session_state[f"{prefix}city"] = chosen["city"]
-        st.session_state[f"{prefix}country"] = chosen["country"]
-        st.session_state[f"{prefix}anchor_lat"] = chosen["lat"]  # the POI becomes the anchor
-        st.session_state[f"{prefix}anchor_lon"] = chosen["lon"]
-        st.session_state[f"{prefix}results"] = None  # hide matches; query stays put
-        st.rerun()
+def _locate_place_cb(search_prefix: str, city_key: str, country_key: str) -> None:
+    g = st.session_state
+    query = build_query(g.get(city_key, ""), g.get(country_key, ""))
+    g[f"{search_prefix}results"] = _place_search(query) if query else []
+    g[f"{search_prefix}pick"] = 0  # reset the match selection to the top result
+
+
+def _use_match_cb(
+    search_prefix: str, city_key: str, country_key: str, lat_key: str, lon_key: str
+) -> None:
+    g = st.session_state
+    results = g.get(f"{search_prefix}results") or []
+    if not results:
+        return
+    chosen = results[min(g.get(f"{search_prefix}pick", 0), len(results) - 1)]
+    g[city_key] = chosen["city"]
+    g[country_key] = chosen["country"]
+    g[lat_key] = chosen["lat"]
+    g[lon_key] = chosen["lon"]
+    g[f"{search_prefix}results"] = None
+
+
+def _place_field(
+    city_label: str, city_key: str, country_key: str, lat_key: str, lon_key: str, search_prefix: str
+) -> None:
+    """Type the city and hit 📍 Locate to pin the real place (coords + tidy name) —
+    like a travel site's field, but OSM-compliant (one cached call per Locate, not
+    per keystroke). Picking a match disambiguates + feeds flight/hotel search; typing
+    without locating still works as the manual fallback."""
+    c1, c2, c3 = st.columns([3, 2, 1])
+    c1.text_input(city_label, key=city_key)
+    c2.text_input("Country (optional)", key=country_key)
+    c3.markdown("<div style='height:1.7em'></div>", unsafe_allow_html=True)
+    c3.button(
+        "📍 Locate",
+        key=f"{search_prefix}locate",
+        on_click=_locate_place_cb,
+        args=(search_prefix, city_key, country_key),
+    )
+    results = st.session_state.get(f"{search_prefix}results")
+    if results:
+        labels = [r["display_name"] for r in results]
+        st.selectbox(
+            "Matches",
+            range(len(results)),
+            format_func=lambda i: labels[i],
+            key=f"{search_prefix}pick",
+        )
+        st.button(
+            "Use this place",
+            key=f"{search_prefix}use",
+            on_click=_use_match_cb,
+            args=(search_prefix, city_key, country_key, lat_key, lon_key),
+        )
+    elif results == []:
+        st.caption("No match — the typed city will be used as-is.")
+    elif st.session_state.get(lat_key) is not None:
+        st.caption("📍 Pinned to the map.")
 
 
 def _leg_field_widgets(prefix: str) -> None:
-    oc1, oc2 = st.columns(2)
-    oc1.text_input("From city (optional)", key=f"{prefix}from_city")
-    oc2.text_input("From country (optional)", key=f"{prefix}from_country")
-    _place_picker(prefix)
-    tc1, tc2 = st.columns(2)
-    tc1.text_input("To city", key=f"{prefix}city")
-    tc2.text_input("Country (optional)", key=f"{prefix}country")
+    st.caption("Start / origin (optional; needed for flights)")
+    _place_field(
+        "From city (optional)",
+        f"{prefix}from_city",
+        f"{prefix}from_country",
+        f"{prefix}from_lat",
+        f"{prefix}from_lon",
+        f"{prefix}from",
+    )
+    st.caption("Destination")
+    _place_field(
+        "To city",
+        f"{prefix}city",
+        f"{prefix}country",
+        f"{prefix}anchor_lat",
+        f"{prefix}anchor_lon",
+        f"{prefix}to",
+    )
     st.checkbox("Round trip (return to the From city)", key=f"{prefix}round")
     dc1, dc2 = st.columns(2)
     dc1.date_input("Start date", key=f"{prefix}start")
@@ -585,6 +644,8 @@ def _draftleg_from(prefix: str) -> DraftLeg:
         budget_cap=Decimal(str(g[f"{prefix}cap"])) if g[f"{prefix}cap"] else None,
         anchor_lat=g.get(f"{prefix}anchor_lat"),
         anchor_lon=g.get(f"{prefix}anchor_lon"),
+        from_lat=g.get(f"{prefix}from_lat"),
+        from_lon=g.get(f"{prefix}from_lon"),
     )
 
 
@@ -602,6 +663,8 @@ def _draftleg_from_row(leg: dict) -> DraftLeg:
         budget_cap=leg.get("budget_cap"),
         anchor_lat=leg.get("anchor_lat"),
         anchor_lon=leg.get("anchor_lon"),
+        from_lat=leg.get("from_lat"),
+        from_lon=leg.get("from_lon"),
     )
 
 
@@ -618,11 +681,12 @@ def _seed_leg_fields(prefix: str, leg: DraftLeg) -> None:
     g[f"{prefix}hotel"] = leg.need_hotel
     g[f"{prefix}round"] = leg.round_trip
     g[f"{prefix}cap"] = float(leg.budget_cap) if leg.budget_cap else None
-    g[f"{prefix}q"] = ""  # fresh place search; keep the leg's existing anchor
-    g[f"{prefix}results"] = None
-    g[f"{prefix}lastq"] = None
+    g[f"{prefix}fromresults"] = None  # clear stale Locate matches; keep the pinned coords
+    g[f"{prefix}toresults"] = None
     g[f"{prefix}anchor_lat"] = leg.anchor_lat
     g[f"{prefix}anchor_lon"] = leg.anchor_lon
+    g[f"{prefix}from_lat"] = leg.from_lat
+    g[f"{prefix}from_lon"] = leg.from_lon
 
 
 def _auto_locate(query: str) -> tuple[float, float] | None:

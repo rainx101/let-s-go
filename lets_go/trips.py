@@ -31,6 +31,8 @@ class DraftLeg:
     budget_cap: Decimal | None = None
     anchor_lat: float | None = None  # the picked place's point (POI-as-destination)
     anchor_lon: float | None = None
+    from_lat: float | None = None  # the picked origin's point (for flight search)
+    from_lon: float | None = None
 
 
 # --- pure helpers (testable) ------------------------------------------------
@@ -176,8 +178,8 @@ def create_trip(
             cur.execute(
                 "INSERT INTO legs (trip_id, city, country, from_city, from_country, "
                 "start_date, end_date, need_flight, need_hotel, round_trip, budget_cap, "
-                "anchor_lat, anchor_lon, position) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "anchor_lat, anchor_lon, from_lat, from_lon, position) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     trip_id,
                     leg.city.strip(),
@@ -192,6 +194,8 @@ def create_trip(
                     leg.budget_cap,
                     leg.anchor_lat,
                     leg.anchor_lon,
+                    leg.from_lat,
+                    leg.from_lon,
                     pos,
                 ),
             )
@@ -261,7 +265,7 @@ def list_trips() -> list[dict]:
         cur.execute(
             "SELECT id, trip_id, city, country, from_city, from_country, start_date, end_date, "
             "need_flight, need_hotel, round_trip, budget_cap, flight_cap, hotel_cap, "
-            "anchor_lat, anchor_lon, position "
+            "anchor_lat, anchor_lon, from_lat, from_lon, position "
             "FROM legs ORDER BY position"
         )
         legs = cur.fetchall()
@@ -281,7 +285,7 @@ def update_leg(leg_id: int, leg: DraftLeg) -> None:
         cur.execute(
             "UPDATE legs SET city=%s, country=%s, from_city=%s, from_country=%s, "
             "start_date=%s, end_date=%s, need_flight=%s, need_hotel=%s, round_trip=%s, "
-            "budget_cap=%s WHERE id=%s",
+            "budget_cap=%s, from_lat=%s, from_lon=%s WHERE id=%s",
             (
                 leg.city.strip(),
                 leg.country.strip() or None,
@@ -293,6 +297,8 @@ def update_leg(leg_id: int, leg: DraftLeg) -> None:
                 leg.need_hotel,
                 leg.round_trip,
                 leg.budget_cap,
+                leg.from_lat,
+                leg.from_lon,
                 leg_id,
             ),
         )
@@ -310,8 +316,8 @@ def add_leg(trip_id: int, leg: DraftLeg) -> None:
         cur.execute(
             "INSERT INTO legs (trip_id, city, country, from_city, from_country, "
             "start_date, end_date, need_flight, need_hotel, round_trip, budget_cap, "
-            "anchor_lat, anchor_lon, position) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "anchor_lat, anchor_lon, from_lat, from_lon, position) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 trip_id,
                 leg.city.strip(),
@@ -326,6 +332,8 @@ def add_leg(trip_id: int, leg: DraftLeg) -> None:
                 leg.budget_cap,
                 leg.anchor_lat,
                 leg.anchor_lon,
+                leg.from_lat,
+                leg.from_lon,
                 row[0],
             ),
         )

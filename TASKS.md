@@ -115,7 +115,9 @@ Every auto-value must remain **user-editable**; manual entry always works.
       (PRD §9). _(2026-09-12: Auto-arrange spreads undated activities into days;
       per-item **Move to day** done; within-day up/down reordering still to do.)_
 - [ ] **Flight auto-search:** Travelpayouts Data API (§11) — token in secrets;
-      **cache results**; cheapest within the **flight+hotel** allocation.
+      **cache results**; cheapest within the **flight+hotel** allocation. _(2026-09-12:
+      origin + destination now both **search-and-picked** and geocoded — the From place
+      pins `legs.from_lat/from_lon` — so the search gets a validated pair, not typed text.)_
 - [ ] **Hotel auto-search (anchor-ranked):** one small-quota free API (pick at
       build) returning **price + location** — rank by **distance-to-anchor × price**
       (nearest *and* cheapest) within the flight+hotel budget, not price alone;

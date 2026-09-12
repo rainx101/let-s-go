@@ -55,6 +55,11 @@ ALTER TABLE legs ADD COLUMN IF NOT EXISTS round_trip BOOLEAN NOT NULL DEFAULT FA
 -- distance (PRD §6/§7). NULL until located; always user-editable.
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS anchor_lat DOUBLE PRECISION;
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS anchor_lon DOUBLE PRECISION;
+-- Origin coordinates: the start/from place's point (geocoded from the picked
+-- place) so Phase 3 flight search can resolve the nearest departure airport from
+-- a precise point, not a typed city name. NULL until picked; user-editable.
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_lat DOUBLE PRECISION;
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_lon DOUBLE PRECISION;
 
 CREATE TABLE IF NOT EXISTS items (
     id         SERIAL PRIMARY KEY,
