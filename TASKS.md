@@ -94,8 +94,10 @@ Every auto-value must remain **user-editable**; manual entry always works.
       base USD); static `RATES` fallback + 1h cache (PRD §10/§11).
 - [x] **Geocoding:** locate activities/restaurants **and the destination place
       (the anchor)** by name via **OpenStreetMap** (respect ~1 req/sec + user-agent).
-      _(2026-09-12: the destination **anchor** in the steps, and per-item Locate +
-      editable lat/lon for activities/restaurants in the ✏️ popover.)_
+      _(2026-09-12: destination **search-and-pick** (fires on Enter) + the same
+      picker in the activity/restaurant **add form**; address fallback when there's
+      no match; Review's **"needs an address"** list locates name-only items so they
+      join the day plan. Per-item Locate + editable lat/lon stay in the ✏️ popover.)_
 - [ ] **Place/POI destinations:** a destination can be **any geocoded place, not
       just a city** (e.g. "Disneyland, Anaheim"); that point is the stop's
       **anchor** (PRD §6/§7, revised 2026-09-08).

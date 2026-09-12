@@ -146,13 +146,32 @@ def _submit_item_cb(
         return
     amount = Decimal(str(cost)) if cost is not None else None
     new_id = add_item(tid, fixed_leg_id, category, name, amount, g[kp + "ccy"], g[kp + "date"])
-    if category in ("spot", "restaurant") and (place[0] or place[1]):
-        found = _locate(place_query(name, place[0], place[1]))  # locate the place you typed
-        if found:
-            set_item_location(new_id, found[0], found[1], found[2])
+    if category in ("spot", "restaurant"):
+        _locate_new_item(new_id, kp, place)
     g[kp + "err"] = []
     g[kp + "name"] = ""
     g[kp + "cost"] = None  # keep the date so several items can share a day
+    g[kp + "q"] = ""  # clear the place search for the next add
+    g[kp + "address"] = ""
+    g[kp + "results"] = None
+    g[kp + "lastq"] = None
+
+
+def _locate_new_item(item_id: int, kp: str, place: tuple[str, str]) -> None:
+    """Locate a just-added spot/restaurant: the picked search match (coords +
+    address), else the typed address (geocoded with the stop for context). A
+    name-only item stays unlocated — it surfaces in Review's needs-an-address list."""
+    g = st.session_state
+    results = g.get(kp + "results")
+    if results:
+        chosen = results[g.get(kp + "pick", 0)]
+        set_item_location(item_id, chosen["lat"], chosen["lon"], chosen["display_name"])
+        return
+    address = (g.get(kp + "address") or "").strip()
+    if address:
+        found = _locate(place_query(address, place[0], place[1]))
+        if found:
+            set_item_location(item_id, found[0], found[1], address)
 
 
 def _save_item_loc_cb(item_id: int, lat_key: str, lon_key: str) -> None:
@@ -288,6 +307,17 @@ def _item_manager(
     st.text_input("Name", key=kp + "name")
     lo, hi = leg_dates.get(fixed_leg_id, (None, None))
     st.date_input("Date (optional)", value=None, min_value=lo, max_value=hi, key=kp + "date")
+    current_cat = (
+        categories[0] if len(categories) == 1 else st.session_state.get(kp + "type", categories[0])
+    )
+    if current_cat in ("spot", "restaurant"):
+        chosen = _place_search_box(
+            kp, "🔎 Find the place (optional)", placeholder="e.g. Blue Bottle Coffee, Anaheim"
+        )
+        if chosen:
+            st.caption(f"📍 Will use: {chosen['display_name']}")
+        else:
+            st.text_input("Address (optional — locates it for the day plan)", key=kp + "address")
     st.button(
         "Add",
         key=kp + "btn",
@@ -473,29 +503,39 @@ def _leg_field_defaults(prefix: str) -> dict:
     }
 
 
-def _place_picker(prefix: str) -> None:
-    """Search a place and pick the exact match — fills the To city/Country below
-    with the right name + country (disambiguates, fixes spelling)."""
-    sc1, sc2 = st.columns([3, 1])
-    sc1.text_input("🔎 Search a place", key=f"{prefix}q", placeholder="e.g. Disneyland, Anaheim")
-    sc2.markdown("<div style='height:1.7em'></div>", unsafe_allow_html=True)
-    if sc2.button("Search", key=f"{prefix}search"):
-        st.session_state[f"{prefix}results"] = _place_search(st.session_state.get(f"{prefix}q", ""))
+def _place_search_box(
+    prefix: str,
+    label: str = "🔎 Search a place",
+    placeholder: str = "e.g. Disneyland, Anaheim",
+) -> dict | None:
+    """Search a place and pick a match. The search fires when the typed query
+    changes (on Enter) — one cached Nominatim call per query, never per keystroke
+    (OSM policy). Returns the selected match, or None when nothing is picked."""
+    q = st.text_input(label, key=f"{prefix}q", placeholder=placeholder)
+    if q and q != st.session_state.get(f"{prefix}lastq"):
+        st.session_state[f"{prefix}results"] = _place_search(q)
+        st.session_state[f"{prefix}lastq"] = q
     results = st.session_state.get(f"{prefix}results")
     if results is None:
-        return
+        return None
     if not results:
-        st.caption("No matches — type the city and country by hand below.")
-        return
+        st.caption("No matches — enter it by hand below.")
+        return None
     labels = [r["display_name"] for r in results]
     pick = st.selectbox(
         "Matches", range(len(results)), format_func=lambda i: labels[i], key=f"{prefix}pick"
     )
-    if st.button("Use this place", key=f"{prefix}use"):
-        chosen = results[pick]
+    return results[pick]
+
+
+def _place_picker(prefix: str) -> None:
+    """Search a place and pick the exact match — fills the To city/Country below
+    with the right name + country (disambiguates, fixes spelling)."""
+    chosen = _place_search_box(prefix)
+    if chosen and st.button("Use this place", key=f"{prefix}use"):
         st.session_state[f"{prefix}city"] = chosen["city"]
         st.session_state[f"{prefix}country"] = chosen["country"]
-        st.session_state[f"{prefix}results"] = None
+        st.session_state[f"{prefix}results"] = None  # hide matches; query stays put
         st.rerun()
 
 
@@ -925,6 +965,31 @@ def _auto_arrange(
     reorder_items(schedule)
 
 
+def _locate_address_cb(item_id: int, addr_key: str, place: tuple[str, str]) -> None:
+    address = (st.session_state.get(addr_key) or "").strip()
+    if not address:
+        return
+    found = _locate(place_query(address, place[0], place[1]))
+    if found:
+        set_item_location(item_id, found[0], found[1], address)
+
+
+def _needs_address_row(it: dict, place: tuple[str, str]) -> None:
+    """One unlocated spot/restaurant: type an address and Locate it (geocoded with
+    the stop for context) so it can join the distance-based day plan."""
+    icon = CATEGORY_ICON.get(it["category"], "")
+    c1, c2, c3 = st.columns([2, 3, 1])
+    c1.write(f"{icon} {it['name']}")
+    addr_key = f"needaddr_{it['id']}"
+    c2.text_input("Address", key=addr_key, label_visibility="collapsed", placeholder="street, city")
+    c3.button(
+        "Locate",
+        key=f"needloc_{it['id']}",
+        on_click=_locate_address_cb,
+        args=(it["id"], addr_key, place),
+    )
+
+
 def _day_plan_section(trip: dict) -> None:
     """Per stop: the day-by-day schedule — activities anchor each day, restaurants
     grouped by nearest activity with distance + address, each movable to another
@@ -958,19 +1023,25 @@ def _day_plan_section(trip: dict) -> None:
         if st.button(f"🗺 Auto-arrange by distance — {leg['city']}", key=f"arrange_{leg['id']}"):
             _auto_arrange(leg, leg_items, num_days, ref, start)
             st.rerun()
+        located = [it for it in leg_items if it.get("lat") is not None]
         for d, date_d in enumerate(day_options):
-            bucket = [it for it in leg_items if it.get("on_date") == date_d]
+            bucket = [it for it in located if it.get("on_date") == date_d]
             label = f"Day {d + 1}" + (f" · {date_d}" if date_d else "")
             with st.expander(label, expanded=bool(bucket)):
                 if not bucket:
                     st.caption("No plans yet — move an item here, or auto-arrange.")
                 for it in bucket:
                     _day_item_row(it, spots_ll, ref, day_options, home)
-        unscheduled = [it for it in leg_items if it.get("on_date") not in day_options]
+        unscheduled = [it for it in located if it.get("on_date") not in day_options]
         if unscheduled:
             with st.expander("Unscheduled", expanded=True):
                 for it in unscheduled:
                     _day_item_row(it, spots_ll, ref, day_options, home)
+        unlocated = [it for it in leg_items if it.get("lat") is None]
+        if unlocated:
+            st.caption("📍 Needs an address — add one to place it on the map, then re-arrange:")
+            for it in unlocated:
+                _needs_address_row(it, (leg["city"], leg.get("country") or ""))
 
 
 def _render_review(trip: dict) -> None:

@@ -6,6 +6,26 @@ step**.
 
 ---
 
+## 2026-09-12 — Place picker for items + address fallback + "needs an address"
+
+**What we did** (search-and-pick the real place for activities/restaurants, not a blind geocode)
+- **Search fires on Enter** now (no Search button): type a few letters, press Enter,
+  pick a match. One cached Nominatim call **per changed query** — still never per
+  keystroke (OSM bans autocomplete; live typeahead would need a paid keyed API).
+  Shared `_place_search_box` drives both the destination picker and the item form.
+- **Add-activity/restaurant form** gets the picker: pick a match → the item is saved
+  **located** with coords + **address** (the match's display name). If you don't pick,
+  an optional **Address** field geocodes on Add. **Name only** → saved **unlocated**.
+- **Review → "📍 Needs an address"**: after the day expanders, each stop lists its
+  **unlocated** spots/restaurants with an **address box + Locate**; locating drops it
+  into the day plan so **Auto-arrange** can place it (PRD §6/§8/§11).
+- Verified: ruff/ty/pytest green (97 tests; this slice is UI over the existing geocoding
+  + `items.address`, no new deps/schema).
+
+**Next step**
+- Wire the picked destination match's exact coords as the stop **anchor** (POI-as-
+  destination), then the anchor-ranged hotel search.
+
 ## 2026-09-12 — Destination place search & pick (name + country auto-filled)
 
 **What we did** (type a place → pick the real match; no more guessing spelling/country)
