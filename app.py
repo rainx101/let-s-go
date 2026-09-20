@@ -1,5 +1,6 @@
 """let's go — travel budget & planning app."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -24,6 +25,7 @@ from lets_go.hotels import (
     list_hotels_or_empty,
     parse_location_key,
     rank_hotels,
+    rate_range_or_none,
 )
 from lets_go.trips import (
     DraftLeg,
@@ -133,6 +135,18 @@ def _hotels_for(location_key: str) -> list[Hotel]:
 def _hotel_rate(hotel_key: str, chk_in: date, chk_out: date) -> Decimal | None:
     """Cheapest nightly rate (USD) for a hotel + stay (cached 1h), or None."""
     return cheapest_rate_or_none(hotel_key, chk_in, chk_out)
+
+
+@st.cache_data(ttl=3600)
+def _hotel_ranges(
+    keys: tuple[str, ...], chk_in: date, chk_out: date
+) -> dict[str, tuple[Decimal, Decimal] | None]:
+    """Date-specific (cheapest, priciest) nightly rate (USD) for several hotels,
+    cached 1h. Fetched in parallel — each Xotelo /rates call is slow (~3-4s), so
+    the batch runs concurrently to keep first load a few seconds, not a few dozen."""
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        ranges = pool.map(lambda k: rate_range_or_none(k, chk_in, chk_out), keys)
+    return dict(zip(keys, ranges, strict=True))
 
 
 def _locate(query: str) -> tuple[float, float, str] | None:
@@ -1206,17 +1220,24 @@ def _add_hotel_cb(tid: int, leg: dict, hotel: Hotel) -> None:
 
 
 def _hotel_row(
-    trip: dict, leg: dict, hotel: Hotel, anchor: tuple[float, float] | None, home: str
+    trip: dict,
+    leg: dict,
+    hotel: Hotel,
+    anchor: tuple[float, float] | None,
+    home: str,
+    date_range: tuple[Decimal, Decimal] | None = None,
 ) -> None:
     info, act = st.columns([4, 1])
-    if hotel.price_min is not None:
-        price_txt = f"from ${float(hotel.price_min):,.0f}"
-        if home != "USD":
-            price_txt += (
-                f" (≈{float(convert(hotel.price_min, 'USD', home, rates=_rates())):,.0f} {home})"
-            )
+    if date_range is not None:  # date-specific rate for the chosen stay
+        lo, hi = date_range
+        span = f"${float(lo):,.0f}" if lo == hi else f"${float(lo):,.0f}–${float(hi):,.0f}"
+        price_txt, base = f"{span} for your dates", lo
+    elif hotel.price_min is not None:  # TripAdvisor's general (non-date) range
+        price_txt, base = f"from ${float(hotel.price_min):,.0f}", hotel.price_min
     else:
-        price_txt = "price n/a"
+        price_txt, base = "price n/a", None
+    if base is not None and home != "USD":
+        price_txt += f" (≈{float(convert(base, 'USD', home, rates=_rates())):,.0f} {home})"
     dist_txt = f" · {haversine(anchor, (hotel.lat, hotel.lon)):.1f} km" if anchor else ""
     rating_txt = f" · ⭐ {hotel.rating}" if hotel.rating is not None else ""
     info.write(f"🏨 **{hotel.name}** — {price_txt}{dist_txt}{rating_txt}")
@@ -1287,16 +1308,41 @@ def _hotel_search_section(trip: dict, leg: dict) -> None:
     cap_usd = convert(Decimal(str(ceil)), home, "USD", rates=_rates()) if ceil is not None else None
     within, over = rank_hotels(hotels, anchor, cap_usd)
 
-    if within:
-        for hotel in within[:8]:
-            _hotel_row(trip, leg, hotel, anchor, home)
-        if len(within) > 8:
-            st.caption(f"…and {len(within) - 8} more within budget.")
-    else:
+    if not within:
         st.caption("Nothing within the hotel budget — see over-budget below, or add manually.")
+    else:
+        _render_within(trip, leg, within, anchor, home)
     if over:
         with st.expander(f"Show {len(over)} over-budget"):
             for hotel in over[:8]:
+                _hotel_row(trip, leg, hotel, anchor, home)
+
+
+def _render_within(
+    trip: dict, leg: dict, within: list[Hotel], anchor: tuple[float, float] | None, home: str
+) -> None:
+    """Show within-budget hotels: the top 8 priced by the stay's exact dates (and
+    re-ranked by that price), the rest kept behind an expander with TripAdvisor's
+    general 'from' price so selection breadth isn't lost."""
+    chk_in, chk_out = leg["start_date"], leg["end_date"]
+    top, rest = within[:8], within[8:]
+    ranges: dict[str, tuple[Decimal, Decimal] | None] = {}
+    if chk_in and chk_out:
+        with st.spinner("Checking prices for your dates…"):
+            ranges = _hotel_ranges(tuple(h.key for h in top), chk_in, chk_out)
+
+        def date_key(h: Hotel) -> tuple[float, float]:
+            rng = ranges.get(h.key)
+            price = float(rng[0]) if rng else float(h.price_min or float("inf"))
+            dist = haversine(anchor, (h.lat, h.lon)) if anchor else 1.0
+            return (dist * price, price)
+
+        top = sorted(top, key=date_key)
+    for hotel in top:
+        _hotel_row(trip, leg, hotel, anchor, home, date_range=ranges.get(hotel.key))
+    if rest:
+        with st.expander(f"Show {len(rest)} more within budget"):
+            for hotel in rest:
                 _hotel_row(trip, leg, hotel, anchor, home)
 
 

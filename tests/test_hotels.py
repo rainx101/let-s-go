@@ -13,6 +13,8 @@ from lets_go.hotels import (
     list_hotels_or_empty,
     parse_location_key,
     rank_hotels,
+    rate_range,
+    rate_range_or_none,
 )
 
 ANCHOR = (33.812, -117.919)  # Disneyland-ish
@@ -85,6 +87,29 @@ def test_cheapest_rate_returns_minimum(xotelo_rates_payload):
         fetch_json=lambda _url: xotelo_rates_payload,
     )
     assert rate == Decimal("219")
+
+
+def test_rate_range_returns_min_and_max(xotelo_rates_payload):
+    rng = rate_range(
+        "g29092-d113856",
+        date(2026, 11, 1),
+        date(2026, 11, 3),
+        fetch_json=lambda _url: xotelo_rates_payload,
+    )
+    assert rng == (Decimal("219"), Decimal("246"))
+
+
+def test_rate_range_none_when_no_rates():
+    payload = {"error": None, "result": {"rates": []}}
+    rng = rate_range("k", date(2026, 11, 1), date(2026, 11, 3), fetch_json=lambda _url: payload)
+    assert rng is None
+
+
+def test_rate_range_or_none_swallows_failure():
+    def boom(_url):
+        raise OSError("network down")
+
+    assert rate_range_or_none("k", date(2026, 11, 1), date(2026, 11, 3), fetch_json=boom) is None
 
 
 def test_cheapest_rate_or_none_swallows_failure():

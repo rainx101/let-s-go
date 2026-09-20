@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 _API = "https://data.xotelo.com/api"
 _USER_AGENT = "lets-go-travel-planner/1.0"
-_MIN_INTERVAL_S = 1.0  # courtesy throttle for the free service
+_MIN_INTERVAL_S = 0.3  # courtesy throttle (Xotelo documents no hard limit)
 _LOCATION_KEY_RE = re.compile(r"g\d+")
 
 _last_call = 0.0
@@ -131,6 +131,41 @@ def list_hotels_or_empty(
         return []
 
 
+def rate_range(
+    hotel_key: str,
+    chk_in: date,
+    chk_out: date,
+    fetch_json: Callable[[str], dict] = _fetch_json,
+) -> tuple[Decimal, Decimal] | None:
+    """(cheapest, priciest) nightly rate (USD) across OTAs for the exact stay, or
+    None when no rate is offered. Date-specific, unlike the /list price range.
+    Raises on a broken response — see `rate_range_or_none`."""
+    params = urllib.parse.urlencode(
+        {"hotel_key": hotel_key, "chk_in": chk_in.isoformat(), "chk_out": chk_out.isoformat()}
+    )
+    rates = [r["rate"] for r in _require_ok(fetch_json(f"{_API}/rates?{params}"))["rates"]]
+    valid = [r for r in rates if r is not None]
+    if not valid:
+        return None
+    lo, hi = _price(min(valid)), _price(max(valid))
+    assert lo is not None and hi is not None  # valid is non-empty
+    return (lo, hi)
+
+
+def rate_range_or_none(
+    hotel_key: str,
+    chk_in: date,
+    chk_out: date,
+    fetch_json: Callable[[str], dict] = _fetch_json,
+) -> tuple[Decimal, Decimal] | None:
+    """Date-specific price range, or None on any failure (PRD §11)."""
+    try:
+        return rate_range(hotel_key, chk_in, chk_out, fetch_json=fetch_json)
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        logger.warning("hotel rate failed for %r (%s)", hotel_key, exc)
+        return None
+
+
 def cheapest_rate(
     hotel_key: str,
     chk_in: date,
@@ -139,12 +174,8 @@ def cheapest_rate(
 ) -> Decimal | None:
     """Cheapest nightly rate (USD) across OTAs for a hotel + stay, or None when no
     rate is offered. Raises on a broken response — see `cheapest_rate_or_none`."""
-    params = urllib.parse.urlencode(
-        {"hotel_key": hotel_key, "chk_in": chk_in.isoformat(), "chk_out": chk_out.isoformat()}
-    )
-    rates = [r["rate"] for r in _require_ok(fetch_json(f"{_API}/rates?{params}"))["rates"]]
-    valid = [r for r in rates if r is not None]
-    return _price(min(valid)) if valid else None
+    rng = rate_range(hotel_key, chk_in, chk_out, fetch_json=fetch_json)
+    return rng[0] if rng is not None else None
 
 
 def cheapest_rate_or_none(

@@ -127,9 +127,11 @@ Every auto-value must remain **user-editable**; manual entry always works.
       not price alone; **cached** 1h; **manual add** stays the fallback. _(2026-09-19:
       `lets_go/hotels.py` thin client (`/list` + `/rates`) + pure `rank_hotels`;
       Hotel step: paste the stop's **TripAdvisor Hotels URL** once (Xotelo has no free
-      city→id lookup → `legs.ta_location_key`), then Add a ranked option (exact
-      nightly rate for the dates, else the 'from' price; USD, editable). Over-budget
-      is a lazy expander (PRD §6). `/search` is paid-only, hence the pasted URL.)_
+      city→id lookup → `legs.ta_location_key`), then Add a ranked option (USD, editable).
+      Over-budget is a lazy expander (PRD §6). `/search` is paid-only, hence the pasted URL.
+      2026-09-19b: the **top 8 are priced by the exact stay dates** ($min–$max via /rates,
+      re-ranked by real price), rest kept behind a "show more" expander; the batch is
+      fetched in parallel (each /rates ~3-4s) so first load is ~4s, then cached.)_
 - [ ] **Activity price search:** best-effort source if one exists; **hand-type
       fallback** always available (PRD §11).
 - [ ] **Results display:** **preferred/"liked before" on top with a mark**, then
