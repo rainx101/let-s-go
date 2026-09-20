@@ -16,7 +16,7 @@ from lets_go.budget import (
 )
 from lets_go.currency import convert, currency_for_country, live_rates_or_static
 from lets_go.db import health_check, init_db
-from lets_go.distance import haversine, plan_days
+from lets_go.distance import haversine, move_within_day, plan_days
 from lets_go.geocoding import build_query, geocode_or_none, place_query, search_or_empty
 from lets_go.trips import (
     DraftLeg,
@@ -969,20 +969,49 @@ def _move_item_cb(it: dict, home: str, sel_key: str) -> None:
     update_item(it["id"], it["cost"], it["currency"] or home, st.session_state[sel_key])
 
 
+def _reorder_within_day_cb(
+    bucket_ids: list[int], idx: int, delta: int, date_d: date | None
+) -> None:
+    order = move_within_day(bucket_ids, idx, delta)
+    reorder_items([(iid, date_d, pos) for pos, iid in enumerate(order)])
+
+
 def _day_item_row(
     it: dict,
     spots_ll: list[tuple[float, float]],
     ref: tuple[float, float] | None,
     day_options: list[date | None],
     home: str,
+    idx: int = 0,
+    bucket_ids: list[int] | None = None,
+    date_d: date | None = None,
 ) -> None:
-    row, mv = st.columns([4, 2])
+    # Arrows only in a real day bucket; the Unscheduled catch-all (bucket_ids
+    # None) mixes dates, so within-day position ordering would be meaningless.
+    cols = st.columns([5, 2, 3]) if bucket_ids is not None else st.columns([7, 3])
+    info, mv = cols[0], cols[-1]
     icon = CATEGORY_ICON.get(it["category"], "")
     dist = _item_distance(it, spots_ll, ref)
     km = f" · {dist:.1f} km" if dist is not None else ""
-    row.write(f"{icon} **{it['name']}**{km}")
+    info.write(f"{icon} **{it['name']}**{km}")
     if it.get("address"):
-        row.caption(it["address"])
+        info.caption(it["address"])
+    if bucket_ids is not None:
+        up, down = cols[1].columns(2)
+        up.button(
+            "↑",
+            key=f"up_{it['id']}",
+            disabled=idx == 0,
+            on_click=_reorder_within_day_cb,
+            args=(bucket_ids, idx, -1, date_d),
+        )
+        down.button(
+            "↓",
+            key=f"down_{it['id']}",
+            disabled=idx == len(bucket_ids) - 1,
+            on_click=_reorder_within_day_cb,
+            args=(bucket_ids, idx, 1, date_d),
+        )
     current = it.get("on_date")
     options: list[date | None] = day_options if current in day_options else [current, *day_options]
 
@@ -1100,8 +1129,9 @@ def _day_plan_section(trip: dict) -> None:
             with st.expander(label, expanded=bool(bucket)):
                 if not bucket:
                     st.caption("No plans yet — move an item here, or auto-arrange.")
-                for it in bucket:
-                    _day_item_row(it, spots_ll, ref, day_options, home)
+                bucket_ids = [it["id"] for it in bucket]
+                for idx, it in enumerate(bucket):
+                    _day_item_row(it, spots_ll, ref, day_options, home, idx, bucket_ids, date_d)
         unscheduled = [it for it in located if it.get("on_date") not in day_options]
         if unscheduled:
             with st.expander("Unscheduled", expanded=True):

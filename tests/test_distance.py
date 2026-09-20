@@ -2,7 +2,7 @@
 
 import pytest
 
-from lets_go.distance import haversine, plan_days
+from lets_go.distance import haversine, move_within_day, plan_days
 
 # Rough anchor + points: two clustered near the anchor, two clustered ~5km east.
 ANCHOR = (33.81, -117.92)  # Disneyland-ish
@@ -92,3 +92,16 @@ def test_plan_days_fixed_day_beyond_range_clamps_into_last_day():
     plan = plan_days([(10, *ANCHOR, 9)], [], num_days=3, ref=None)
     assert _ids(plan[2]) == {10}
     assert plan[:2] == [[], []]
+
+
+def test_move_within_day_moves_item_down():
+    assert move_within_day([1, 2, 3], 0, 1) == [2, 1, 3]
+
+
+def test_move_within_day_moves_item_up():
+    assert move_within_day([1, 2, 3], 2, -1) == [1, 3, 2]
+
+
+def test_move_within_day_out_of_range_is_noop():
+    assert move_within_day([1, 2, 3], 0, -1) == [1, 2, 3]
+    assert move_within_day([1, 2, 3], 2, 1) == [1, 2, 3]
