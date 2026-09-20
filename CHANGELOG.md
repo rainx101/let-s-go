@@ -6,6 +6,22 @@ step**.
 
 ---
 
+## 2026-09-19 — One field for an item's name + place (drop the duplicate search box)
+
+**What we did** (adding an activity/restaurant: type the name, 📍 Locate, pick — no second box)
+- The add-item form no longer has a **Name** field *and* a separate "Find the place" search
+  box. The **Name is the query**: type it, press **📍 Locate**, pick the match (coords +
+  address pinned). Same type-and-Locate style as the From/To fields.
+- **No match →** the item is added **by name** with an optional **Address** field (manual
+  fallback); a name-only item still surfaces in Review's "needs an address" list. So search
+  when it helps, hand-type when it doesn't (PRD §11).
+- Removed the now-unused `_place_search_box`; the item add uses `_locate_item_cb` +
+  the existing `_locate_new_item` (picked match → address → name-only).
+- Verified: ruff/ty/pytest green (99 tests).
+
+**Next step**
+- Phase 3: the **anchor-ranged hotel search**, then flight search.
+
 ## 2026-09-12 — Locate-in-field for From & To (validate both endpoints)
 
 **What we did** (type the city, hit 📍 Locate, pick it — a typo can't mislead flight/hotel search)
