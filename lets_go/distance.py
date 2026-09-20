@@ -71,3 +71,13 @@ def plan_days(
         row += sorted(day_restos[d], key=lambda p: math.inf if p[1] is None else p[1])
         out.append(row)
     return out
+
+
+def move_within_day(ids: list[int], idx: int, delta: int) -> list[int]:
+    """Return `ids` with the item at `idx` swapped one slot by `delta` (±1);
+    a swap that would fall off either end is a no-op (returns a copy)."""
+    order = list(ids)
+    target = idx + delta
+    if 0 <= idx < len(order) and 0 <= target < len(order):
+        order[idx], order[target] = order[target], order[idx]
+    return order

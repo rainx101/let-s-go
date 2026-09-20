@@ -6,6 +6,23 @@ step**.
 
 ---
 
+## 2026-09-19 — Within-day ↑/↓ reordering (finishes Day arrangement)
+
+**What we did** (order a day's items by hand, not just auto-arrange)
+- Each row in a **day** bucket of the Plan-tab day plan now has **↑/↓** arrows that swap
+  the item one slot within that day; disabled at the ends. Reuses `reorder_items` — the
+  swap renumbers that day's `position` 0..n-1, each item keeping its date.
+- New pure helper `move_within_day(ids, idx, delta)` in `distance.py` (beside `plan_days`);
+  out-of-range swaps are a no-op. App callback `_reorder_within_day_cb` feeds it to
+  `reorder_items`.
+- The **Unscheduled** catch-all keeps **Move-to-day only** (it mixes dates, so a single
+  within-day order is meaningless); `_day_item_row`'s reorder params are optional.
+- TDD: 3 new `test_move_within_day_*` cases (down/up/out-of-range). ruff/ty/pytest green
+  (102 tests). Closes the last open piece of **Day arrangement** (TASKS Phase 3).
+
+**Next step**
+- Phase 3: the **anchor-ranged hotel search**, then flight search.
+
 ## 2026-09-19 — One field for an item's name + place (drop the duplicate search box)
 
 **What we did** (adding an activity/restaurant: type the name, 📍 Locate, pick — no second box)

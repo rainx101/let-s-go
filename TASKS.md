@@ -111,10 +111,12 @@ Every auto-value must remain **user-editable**; manual entry always works.
       anchored **day plan** — `plan_days` puts each restaurant under its nearest
       activity's day with distance + address; no-activity stops measure from the
       hotel/anchor; Auto-arrange writes dates + order.)_
-- [~] **Day arrangement:** **recommend a day** for undated activities (spread
+- [x] **Day arrangement:** **recommend a day** for undated activities (spread
       across the stop's date range); allow **reorder items up/down** per day
       (PRD §9). _(2026-09-12: Auto-arrange spreads undated activities into days;
-      per-item **Move to day** done; within-day up/down reordering still to do.)_
+      per-item **Move to day** done. 2026-09-19: within-day **↑/↓ reordering** —
+      each day row has up/down arrows that swap position within the day; the
+      Unscheduled catch-all keeps Move-to-day only.)_
 - [ ] **Flight auto-search:** Travelpayouts Data API (§11) — token in secrets;
       **cache results**; cheapest within the **flight+hotel** allocation. _(2026-09-12:
       origin + destination now both **search-and-picked** and geocoded — the From place
