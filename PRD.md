@@ -4,7 +4,7 @@ Status: **Confirmed direction** (interview 2026-08-26; flow revised 2026-09-03).
 Build details still to be worked out at implementation time. See `AGENT.md` — do
 not assume; ask.
 
-Last updated: 2026-09-03
+Last updated: 2026-09-19
 
 ---
 
@@ -112,6 +112,15 @@ so they resurface next time with a "liked before" mark; restaurants are rated
     **distance-to-anchor × price combo** (nearest *and* cheapest), within the
     flight+hotel budget (§6) — not cheapest-alone. Finding a good hotel near the
     anchor is often the **primary goal** of the stop (the driving-to-Disney case).
+  - **Date-specific pricing, top results only (revised 2026-09-19):** the source's
+    general per-hotel price is not tied to the chosen dates, so the **top 8**
+    within-budget results are priced by the stop's **exact check-in/out** (shown as
+    a "$min–$max for your dates" range) and **re-ranked by that real price**; the
+    **rest keep the general "from" price** (behind a "show more" expander) so the
+    full list of options is still visible. Only the top few are date-priced because
+    each exact-price lookup is a **separate, slow API call** — pricing every option
+    would be too slow and burn the free quota — so they're fetched **in parallel**
+    for the top 8 and **cached**. Every shown price stays **user-editable** (§11).
   - **Activities can scatter:** each activity keeps its **own geocoded point** and
     may sit far from the anchor (hotel near Disney/Anaheim, activities in LA). The
     plan uses distance from the anchor as a signal and can **group days by
@@ -157,7 +166,8 @@ so they resurface next time with a "liked before" mark; restaurants are rated
 - **Hotel** — belongs to a trip/leg; options with prices **and locations**; one
   chosen; counts toward budget; can be marked **preferred**. Search ranks options
   by **distance-to-anchor × price** within the flight+hotel budget (§6), not price
-  alone.
+  alone; the **top results are priced by the exact dates**, the rest by a general
+  "from" price (§6).
 - **Spot** — a place to visit; located by name; assigned to a day; counts toward
   budget.
 - **Restaurant** — located by name; can be added to a day (distance-planned);

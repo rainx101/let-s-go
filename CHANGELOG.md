@@ -6,6 +6,38 @@ step**.
 
 ---
 
+## 2026-09-19 — Hotel auto-search, anchor-ranked (Xotelo, free/keyless)
+
+**What we did** (search hotels near the stop's anchor, ranked cheapest-and-nearest within budget)
+- **Chose Xotelo** as the hotel API (PRD §8 confirm-at-build): free, no key, TripAdvisor-backed.
+  `/list` returns hotels with coords + a price range; `/rates` returns per-OTA nightly price for
+  the dates. `/search` is paid-only, so there's **no free city→TripAdvisor-id lookup**.
+- **New thin client `lets_go/hotels.py`** (mirrors `geocoding.py`: injectable `fetch_json` seam,
+  fail-soft `*_or_empty`/`*_or_none`, courtesy throttle). `parse_location_key`, `list_hotels`,
+  `cheapest_rate`, and the **pure `rank_hotels`** — splits into within-/over-budget, each ordered
+  by **distance-to-anchor × price** with price as the tiebreak (a hotel *at* the anchor no longer
+  collapses to a zero score; `0×∞` NaN avoided). Prices are USD; ranking is currency-agnostic.
+- **DB:** `legs.ta_location_key TEXT` (idempotent) + `set_leg_location_key`; added to the leg read.
+- **Plan tab, Hotel step:** paste the stop's **TripAdvisor Hotels URL** once (we extract `gNNNN`),
+  then a ranked list — name · price · distance · rating — each with **Add** (USD, **editable**).
+  The **top 8** are priced by the stay's **exact dates** ("$min–$max for your dates", via `/rates`)
+  and re-ranked by that real price; the rest keep TripAdvisor's general "from $X" behind a
+  **"show N more within budget"** expander, so breadth isn't lost (the `/list` min–max is *not*
+  date-based). Over-budget stays a **lazy expander** (PRD §6). Since each `/rates` call is slow
+  (~3-4s), the top-8 batch is fetched **in parallel** (first load ~4s, then cached 1h) — this is
+  why date-pricing every hotel would be too slow. **Manual add stays** the fallback (PRD §11).
+  Preferred/"liked-before" surfacing is Phase 4.
+- **Verified:** ruff/ty/pytest green (119 tests; 17 in `test_hotels.py`, mocked network). Live
+  integration smoke against Neon + real Xotelo: created a throwaway Anaheim trip, drove the app to
+  the Hotel step, saw 30 ranked hotels with date ranges on the top 8, clicked Add (exact $120),
+  deleted the trip — ~4s to load the ranked list. No new deps (stdlib `urllib`,
+  `concurrent.futures`), so no lockfile/requirements change.
+
+**Next step**
+- Flight auto-search (Travelpayouts) — needs a free affiliate token in secrets.
+- Manual smoke on the deployed app: paste a real TripAdvisor Hotels URL, confirm the ranked list +
+  Add + over-budget expander behave; watch Xotelo's unofficial reliability (fail-soft covers it).
+
 ## 2026-09-19 — Within-day ↑/↓ reordering (finishes Day arrangement)
 
 **What we did** (order a day's items by hand, not just auto-arrange)

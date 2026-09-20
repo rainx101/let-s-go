@@ -60,6 +60,10 @@ ALTER TABLE legs ADD COLUMN IF NOT EXISTS anchor_lon DOUBLE PRECISION;
 -- a precise point, not a typed city name. NULL until picked; user-editable.
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_lat DOUBLE PRECISION;
 ALTER TABLE legs ADD COLUMN IF NOT EXISTS from_lon DOUBLE PRECISION;
+-- TripAdvisor location id (e.g. 'g29092') for the stop, pasted once by the user
+-- (Xotelo has no free city->id lookup). Drives the Xotelo /list hotel search,
+-- ranked by distance to the anchor (PRD §6/§7). NULL until set; user-editable.
+ALTER TABLE legs ADD COLUMN IF NOT EXISTS ta_location_key TEXT;
 
 CREATE TABLE IF NOT EXISTS items (
     id         SERIAL PRIMARY KEY,

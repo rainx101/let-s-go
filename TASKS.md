@@ -121,11 +121,17 @@ Every auto-value must remain **user-editable**; manual entry always works.
       **cache results**; cheapest within the **flight+hotel** allocation. _(2026-09-12:
       origin + destination now both **search-and-picked** and geocoded — the From place
       pins `legs.from_lat/from_lon` — so the search gets a validated pair, not typed text.)_
-- [ ] **Hotel auto-search (anchor-ranked):** one small-quota free API (pick at
-      build) returning **price + location** — rank by **distance-to-anchor × price**
-      (nearest *and* cheapest) within the flight+hotel budget, not price alone;
-      **cache**; **manual fallback** when quota/errors hit. Often the stop's
-      **primary goal** (the driving-to-Disney case, PRD §6).
+- [x] **Hotel auto-search (anchor-ranked):** **Xotelo** (free, keyless;
+      TripAdvisor-backed) returning **price + location** — ranked by
+      **distance-to-anchor × price** (price breaks ties) within the hotel budget,
+      not price alone; **cached** 1h; **manual add** stays the fallback. _(2026-09-19:
+      `lets_go/hotels.py` thin client (`/list` + `/rates`) + pure `rank_hotels`;
+      Hotel step: paste the stop's **TripAdvisor Hotels URL** once (Xotelo has no free
+      city→id lookup → `legs.ta_location_key`), then Add a ranked option (USD, editable).
+      Over-budget is a lazy expander (PRD §6). `/search` is paid-only, hence the pasted URL.
+      2026-09-19b: the **top 8 are priced by the exact stay dates** ($min–$max via /rates,
+      re-ranked by real price), rest kept behind a "show more" expander; the batch is
+      fetched in parallel (each /rates ~3-4s) so first load is ~4s, then cached.)_
 - [ ] **Activity price search:** best-effort source if one exists; **hand-type
       fallback** always available (PRD §11).
 - [ ] **Results display:** **preferred/"liked before" on top with a mark**, then
@@ -162,11 +168,13 @@ Goal: the "remember what I liked" value.
 
 ## Confirm-at-build items (from PRD §10)
 
-- [ ] Exact **hotel** API choice (small free-quota option).
+- [x] Exact **hotel** API choice — **Xotelo** (free, keyless, TripAdvisor-backed;
+      `/list` gives price + coords, `/rates` gives per-OTA nightly price). Needs a
+      pasted TripAdvisor Hotels URL per stop (no free city→id lookup).
 - [ ] Free source for **per-city average meal cost**.
 - [x] Free source for **currency conversion** rates — **open.er-api.com**
       (keyless, base USD; static fallback).
 - [ ] Any free/affordable source for **activity prices** — else hand-type stays
       the baseline (PRD §11).
 
-_Last updated: 2026-09-19_
+_Last updated: 2026-09-19b_

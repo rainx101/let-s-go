@@ -1,5 +1,6 @@
 """let's go — travel budget & planning app."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -18,6 +19,14 @@ from lets_go.currency import convert, currency_for_country, live_rates_or_static
 from lets_go.db import health_check, init_db
 from lets_go.distance import haversine, move_within_day, plan_days
 from lets_go.geocoding import build_query, geocode_or_none, place_query, search_or_empty
+from lets_go.hotels import (
+    Hotel,
+    cheapest_rate_or_none,
+    list_hotels_or_empty,
+    parse_location_key,
+    rank_hotels,
+    rate_range_or_none,
+)
 from lets_go.trips import (
     DraftLeg,
     add_item,
@@ -37,6 +46,7 @@ from lets_go.trips import (
     set_item_location,
     set_leg_anchor,
     set_leg_cap,
+    set_leg_location_key,
     set_trip_status,
     update_item,
     update_leg,
@@ -112,6 +122,31 @@ def _geocode(query: str) -> tuple[float, float] | None:
 def _place_search(query: str) -> list[dict]:
     """Top place matches to pick from (cached; one Nominatim call per query)."""
     return search_or_empty(query)
+
+
+@st.cache_data(ttl=3600)
+def _hotels_for(location_key: str) -> list[Hotel]:
+    """Hotels for a TripAdvisor location key (cached 1h; one Xotelo /list call),
+    or [] when the free service is empty/down — the UI then keeps manual entry."""
+    return list_hotels_or_empty(location_key)
+
+
+@st.cache_data(ttl=3600)
+def _hotel_rate(hotel_key: str, chk_in: date, chk_out: date) -> Decimal | None:
+    """Cheapest nightly rate (USD) for a hotel + stay (cached 1h), or None."""
+    return cheapest_rate_or_none(hotel_key, chk_in, chk_out)
+
+
+@st.cache_data(ttl=3600)
+def _hotel_ranges(
+    keys: tuple[str, ...], chk_in: date, chk_out: date
+) -> dict[str, tuple[Decimal, Decimal] | None]:
+    """Date-specific (cheapest, priciest) nightly rate (USD) for several hotels,
+    cached 1h. Fetched in parallel — each Xotelo /rates call is slow (~3-4s), so
+    the batch runs concurrently to keep first load a few seconds, not a few dozen."""
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        ranges = pool.map(lambda k: rate_range_or_none(k, chk_in, chk_out), keys)
+    return dict(zip(keys, ranges, strict=True))
 
 
 def _locate(query: str) -> tuple[float, float, str] | None:
@@ -1171,6 +1206,146 @@ def _render_review(trip: dict) -> None:
         st.rerun()
 
 
+def _add_hotel_cb(tid: int, leg: dict, hotel: Hotel) -> None:
+    """Add a searched hotel as an editable item: the exact nightly rate for the
+    stay when the dates give one, else the listing's 'from' price. Coords are
+    pinned; the price stays user-editable like any item (PRD §11)."""
+    price = hotel.price_min
+    if leg["start_date"] and leg["end_date"]:
+        exact = _hotel_rate(hotel.key, leg["start_date"], leg["end_date"])
+        if exact is not None:
+            price = exact
+    new_id = add_item(tid, leg["id"], "hotel", hotel.name, price, "USD", None)
+    set_item_location(new_id, hotel.lat, hotel.lon, hotel.url or hotel.name)
+
+
+def _hotel_row(
+    trip: dict,
+    leg: dict,
+    hotel: Hotel,
+    anchor: tuple[float, float] | None,
+    home: str,
+    date_range: tuple[Decimal, Decimal] | None = None,
+) -> None:
+    info, act = st.columns([4, 1])
+    if date_range is not None:  # date-specific rate for the chosen stay
+        lo, hi = date_range
+        span = f"${float(lo):,.0f}" if lo == hi else f"${float(lo):,.0f}–${float(hi):,.0f}"
+        price_txt, base = f"{span} for your dates", lo
+    elif hotel.price_min is not None:  # TripAdvisor's general (non-date) range
+        price_txt, base = f"from ${float(hotel.price_min):,.0f}", hotel.price_min
+    else:
+        price_txt, base = "price n/a", None
+    if base is not None and home != "USD":
+        price_txt += f" (≈{float(convert(base, 'USD', home, rates=_rates())):,.0f} {home})"
+    dist_txt = f" · {haversine(anchor, (hotel.lat, hotel.lon)):.1f} km" if anchor else ""
+    rating_txt = f" · ⭐ {hotel.rating}" if hotel.rating is not None else ""
+    info.write(f"🏨 **{hotel.name}** — {price_txt}{dist_txt}{rating_txt}")
+    act.button(
+        "Add",
+        key=f"addhotel_{leg['id']}_{hotel.key}",
+        on_click=_add_hotel_cb,
+        args=(trip["id"], leg, hotel),
+    )
+
+
+def _set_key_cb(leg_id: int, in_key: str) -> None:
+    key = parse_location_key(st.session_state.get(in_key, ""))
+    st.session_state[in_key + "_err"] = key is None
+    if key:
+        set_leg_location_key(leg_id, key)
+
+
+def _hotel_search_section(trip: dict, leg: dict) -> None:
+    """Anchor-ranked hotel search (Xotelo, free/keyless). Paste the stop's
+    TripAdvisor Hotels URL once, then pick from options ranked by
+    distance-to-anchor × price within the hotel budget; over-budget is lazy. The
+    manual add below stays as the always-available fallback (PRD §6/§11)."""
+    home = trip["home_currency"]
+    key = leg.get("ta_location_key")
+    if not key:
+        in_key = f"takey_{leg['id']}"
+        st.caption(
+            "🔎 Find hotels — paste this stop's TripAdvisor **Hotels** URL "
+            "(e.g. .../Hotels-g60763-New_York_City-Hotels.html):"
+        )
+        st.text_input(
+            "TripAdvisor Hotels URL",
+            key=in_key,
+            label_visibility="collapsed",
+            placeholder="https://www.tripadvisor.com/Hotels-g...-Hotels.html",
+        )
+        st.button(
+            "Load hotels",
+            key=f"loadhotels_{leg['id']}",
+            on_click=_set_key_cb,
+            args=(leg["id"], in_key),
+        )
+        if st.session_state.get(in_key + "_err"):
+            st.warning("Couldn't find a location id (gNNN) in that text — paste the Hotels URL.")
+        return
+
+    top, chg = st.columns([3, 1])
+    top.caption(f"🔎 Hotels near {leg['city']} (TripAdvisor {key})")
+    chg.button(
+        "Change location",
+        key=f"chgkey_{leg['id']}",
+        on_click=set_leg_location_key,
+        args=(leg["id"], None),
+    )
+
+    hotels = _hotels_for(key)
+    if not hotels:
+        st.info("No hotels from the search right now — add one manually below.")
+        return
+
+    anchor = (
+        (float(leg["anchor_lat"]), float(leg["anchor_lon"]))
+        if leg.get("anchor_lat") is not None
+        else None
+    )
+    ceil = _leg_ceilings(trip, leg).hotel
+    cap_usd = convert(Decimal(str(ceil)), home, "USD", rates=_rates()) if ceil is not None else None
+    within, over = rank_hotels(hotels, anchor, cap_usd)
+
+    if not within:
+        st.caption("Nothing within the hotel budget — see over-budget below, or add manually.")
+    else:
+        _render_within(trip, leg, within, anchor, home)
+    if over:
+        with st.expander(f"Show {len(over)} over-budget"):
+            for hotel in over[:8]:
+                _hotel_row(trip, leg, hotel, anchor, home)
+
+
+def _render_within(
+    trip: dict, leg: dict, within: list[Hotel], anchor: tuple[float, float] | None, home: str
+) -> None:
+    """Show within-budget hotels: the top 8 priced by the stay's exact dates (and
+    re-ranked by that price), the rest kept behind an expander with TripAdvisor's
+    general 'from' price so selection breadth isn't lost."""
+    chk_in, chk_out = leg["start_date"], leg["end_date"]
+    top, rest = within[:8], within[8:]
+    ranges: dict[str, tuple[Decimal, Decimal] | None] = {}
+    if chk_in and chk_out:
+        with st.spinner("Checking prices for your dates…"):
+            ranges = _hotel_ranges(tuple(h.key for h in top), chk_in, chk_out)
+
+        def date_key(h: Hotel) -> tuple[float, float]:
+            rng = ranges.get(h.key)
+            price = float(rng[0]) if rng else float(h.price_min or float("inf"))
+            dist = haversine(anchor, (h.lat, h.lon)) if anchor else 1.0
+            return (dist * price, price)
+
+        top = sorted(top, key=date_key)
+    for hotel in top:
+        _hotel_row(trip, leg, hotel, anchor, home, date_range=ranges.get(hotel.key))
+    if rest:
+        with st.expander(f"Show {len(rest)} more within budget"):
+            for hotel in rest:
+                _hotel_row(trip, leg, hotel, anchor, home)
+
+
 def _render_steps(trip: dict) -> None:
     legs = trip["legs"]
     home = trip["home_currency"]
@@ -1245,6 +1420,7 @@ def _render_steps(trip: dict) -> None:
         _cap_input(trip, leg, "flight_cap")
     elif cat == "hotel":
         _cap_input(trip, leg, "hotel_cap")
+        _hotel_search_section(trip, leg)
     else:
         st.caption("Extra — added on top of the flight+hotel budget, not capped.")
 
