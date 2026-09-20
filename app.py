@@ -151,10 +151,18 @@ def _submit_item_cb(
     g[kp + "err"] = []
     g[kp + "name"] = ""
     g[kp + "cost"] = None  # keep the date so several items can share a day
-    g[kp + "q"] = ""  # clear the place search for the next add
-    g[kp + "address"] = ""
+    g[kp + "address"] = ""  # clear the place lookup for the next add
     g[kp + "results"] = None
-    g[kp + "lastq"] = None
+    g[kp + "pick"] = 0
+
+
+def _locate_item_cb(kp: str, place: tuple[str, str]) -> None:
+    """Locate the typed item name near the stop (one cached Nominatim call), so the
+    matches can be picked before Add. Empty when there's nothing to search."""
+    g = st.session_state
+    query = place_query(g.get(kp + "name", ""), place[0], place[1])
+    g[kp + "results"] = _place_search(query) if query else []
+    g[kp + "pick"] = 0
 
 
 def _locate_new_item(item_id: int, kp: str, place: tuple[str, str]) -> None:
@@ -304,25 +312,32 @@ def _item_manager(
         st.caption(f"≈ {convert(Decimal(str(item_cost)), item_ccy, home, rates=_rates())} {home}")
     if len(categories) > 1:
         st.selectbox("Type", categories, format_func=lambda c: CATEGORY_LABEL[c], key=kp + "type")
-    st.text_input("Name", key=kp + "name")
-    lo, hi = leg_dates.get(fixed_leg_id, (None, None))
-    st.date_input("Date (optional)", value=None, min_value=lo, max_value=hi, key=kp + "date")
     current_cat = (
         categories[0] if len(categories) == 1 else st.session_state.get(kp + "type", categories[0])
     )
+    place = leg_place.get(fixed_leg_id, ("", ""))
+    st.text_input("Name", key=kp + "name")
     if current_cat in ("spot", "restaurant"):
-        chosen = _place_search_box(
-            kp, "🔎 Find the place (optional)", placeholder="e.g. Blue Bottle Coffee, Anaheim"
-        )
-        if chosen:
-            st.caption(f"📍 Will use: {chosen['display_name']}")
-        else:
-            st.text_input("Address (optional — locates it for the day plan)", key=kp + "address")
+        st.button("📍 Locate", key=kp + "locate", on_click=_locate_item_cb, args=(kp, place))
+        results = st.session_state.get(kp + "results")
+        if results:
+            labels = [r["display_name"] for r in results]
+            st.selectbox(
+                "Matches",
+                range(len(results)),
+                format_func=lambda i: labels[i],
+                key=kp + "pick",
+            )
+        elif results == []:
+            st.caption("No match — added by name; add an address (or set it in Review).")
+            st.text_input("Address (optional)", key=kp + "address")
+    lo, hi = leg_dates.get(fixed_leg_id, (None, None))
+    st.date_input("Date (optional)", value=None, min_value=lo, max_value=hi, key=kp + "date")
     st.button(
         "Add",
         key=kp + "btn",
         on_click=_submit_item_cb,
-        args=(tid, categories, kp, fixed_leg_id, leg_place.get(fixed_leg_id, ("", ""))),
+        args=(tid, categories, kp, fixed_leg_id, place),
     )
     for err in st.session_state[kp + "err"]:
         st.error(err)
@@ -507,31 +522,6 @@ def _leg_field_defaults(prefix: str) -> dict:
         f"{prefix}from_lat": None,
         f"{prefix}from_lon": None,
     }
-
-
-def _place_search_box(
-    prefix: str,
-    label: str = "🔎 Search a place",
-    placeholder: str = "e.g. Disneyland, Anaheim",
-) -> dict | None:
-    """Search a place and pick a match. The search fires when the typed query
-    changes (on Enter) — one cached Nominatim call per query, never per keystroke
-    (OSM policy). Returns the selected match, or None when nothing is picked."""
-    q = st.text_input(label, key=f"{prefix}q", placeholder=placeholder)
-    if q and q != st.session_state.get(f"{prefix}lastq"):
-        st.session_state[f"{prefix}results"] = _place_search(q)
-        st.session_state[f"{prefix}lastq"] = q
-    results = st.session_state.get(f"{prefix}results")
-    if results is None:
-        return None
-    if not results:
-        st.caption("No matches — enter it by hand below.")
-        return None
-    labels = [r["display_name"] for r in results]
-    pick = st.selectbox(
-        "Matches", range(len(results)), format_func=lambda i: labels[i], key=f"{prefix}pick"
-    )
-    return results[pick]
 
 
 def _locate_place_cb(search_prefix: str, city_key: str, country_key: str) -> None:

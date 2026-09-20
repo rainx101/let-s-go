@@ -94,10 +94,11 @@ Every auto-value must remain **user-editable**; manual entry always works.
       base USD); static `RATES` fallback + 1h cache (PRD §10/§11).
 - [x] **Geocoding:** locate activities/restaurants **and the destination place
       (the anchor)** by name via **OpenStreetMap** (respect ~1 req/sec + user-agent).
-      _(2026-09-12: destination **search-and-pick** (fires on Enter) + the same
-      picker in the activity/restaurant **add form**; address fallback when there's
-      no match; Review's **"needs an address"** list locates name-only items so they
-      join the day plan. Per-item Locate + editable lat/lon stay in the ✏️ popover.)_
+      _(2026-09-19: **type-and-Locate** everywhere — From/To fields and the
+      activity/restaurant **add form** (the item's Name is the query, one 📍 Locate
+      per lookup). No match → add by name + optional address; Review's **"needs an
+      address"** list locates name-only items. Per-item Locate + editable lat/lon
+      stay in the ✏️ popover.)_
 - [x] **Place/POI destinations:** a destination can be **any geocoded place, not
       just a city** (e.g. "Disneyland, Anaheim"); that point is the stop's
       **anchor** (PRD §6/§7, revised 2026-09-08). _(2026-09-12: picking a place in
@@ -166,4 +167,4 @@ Goal: the "remember what I liked" value.
 - [ ] Any free/affordable source for **activity prices** — else hand-type stays
       the baseline (PRD §11).
 
-_Last updated: 2026-09-12_
+_Last updated: 2026-09-19_
