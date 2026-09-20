@@ -6,6 +6,32 @@ step**.
 
 ---
 
+## 2026-09-19 — Hotel auto-search, anchor-ranked (Xotelo, free/keyless)
+
+**What we did** (search hotels near the stop's anchor, ranked cheapest-and-nearest within budget)
+- **Chose Xotelo** as the hotel API (PRD §8 confirm-at-build): free, no key, TripAdvisor-backed.
+  `/list` returns hotels with coords + a price range; `/rates` returns per-OTA nightly price for
+  the dates. `/search` is paid-only, so there's **no free city→TripAdvisor-id lookup**.
+- **New thin client `lets_go/hotels.py`** (mirrors `geocoding.py`: injectable `fetch_json` seam,
+  fail-soft `*_or_empty`/`*_or_none`, courtesy throttle). `parse_location_key`, `list_hotels`,
+  `cheapest_rate`, and the **pure `rank_hotels`** — splits into within-/over-budget, each ordered
+  by **distance-to-anchor × price** with price as the tiebreak (a hotel *at* the anchor no longer
+  collapses to a zero score; `0×∞` NaN avoided). Prices are USD; ranking is currency-agnostic.
+- **DB:** `legs.ta_location_key TEXT` (idempotent) + `set_leg_location_key`; added to the leg read.
+- **Plan tab, Hotel step:** paste the stop's **TripAdvisor Hotels URL** once (we extract `gNNNN`),
+  then a ranked list — name · from-price (+≈home) · distance · rating — each with **Add** (uses the
+  exact nightly rate for the leg's dates when available, else the 'from' price; USD, **editable**).
+  Over-budget hidden behind a **lazy expander** (PRD §6). Results cached 1h. **Manual add stays**
+  as the always-available fallback (PRD §11). Preferred/"liked-before" surfacing is Phase 4.
+- **Verified:** ruff/ty/pytest green (116 tests; 14 new in `test_hotels.py`, mocked network).
+  AppTest boot clean (0 exceptions, 3 tabs; idempotent schema migration ran on live Neon). No new
+  deps (stdlib `urllib`), so no lockfile/requirements change.
+
+**Next step**
+- Flight auto-search (Travelpayouts) — needs a free affiliate token in secrets.
+- Manual smoke on the deployed app: paste a real TripAdvisor Hotels URL, confirm the ranked list +
+  Add + over-budget expander behave; watch Xotelo's unofficial reliability (fail-soft covers it).
+
 ## 2026-09-19 — Within-day ↑/↓ reordering (finishes Day arrangement)
 
 **What we did** (order a day's items by hand, not just auto-arrange)

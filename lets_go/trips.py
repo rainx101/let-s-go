@@ -245,6 +245,15 @@ def set_leg_anchor(leg_id: int, lat: float | None, lon: float | None) -> None:
     logger.info("Leg %s anchor -> (%s, %s)", leg_id, lat, lon)
 
 
+def set_leg_location_key(leg_id: int, key: str | None) -> None:
+    """Set (or clear, with None) a destination's TripAdvisor location id, used by
+    the Xotelo hotel search (PRD §6/§7)."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("UPDATE legs SET ta_location_key = %s WHERE id = %s", (key, leg_id))
+    logger.info("Leg %s location key -> %s", leg_id, key)
+
+
 def delete_trip(trip_id: int) -> None:
     """Delete a trip and its legs + items (legs/items cascade)."""
     conn = get_connection()
@@ -265,7 +274,7 @@ def list_trips() -> list[dict]:
         cur.execute(
             "SELECT id, trip_id, city, country, from_city, from_country, start_date, end_date, "
             "need_flight, need_hotel, round_trip, budget_cap, flight_cap, hotel_cap, "
-            "anchor_lat, anchor_lon, from_lat, from_lon, position "
+            "anchor_lat, anchor_lon, from_lat, from_lon, ta_location_key, position "
             "FROM legs ORDER BY position"
         )
         legs = cur.fetchall()
